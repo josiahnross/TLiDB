@@ -1,12 +1,116 @@
+import torch
 from algorithms.initializer import initialize_algorithm
+import configs
 from train import train,evaluate
 import os
 from utils import Logger, load_datasets_split, load_algorithm, log_config, \
         set_seed, log_dataset_info, get_savepath_dir, append_to_save_path_dir
 import argparser
 
-def main(config):
+class Config:
+    frac = 1.0
+    debug = False
+    generate_during_training = False
 
+    # config for experimentation ease
+    model_config = None
+
+    # general args
+    cpu_only = False
+    seed = -1
+    log_and_model_dir = "./logs_and_models"
+    saved_model_dir = None
+    data_dir = "../TLiDB/data"
+    num_workers = 4
+
+    # model args
+    model = None
+        
+    # training args
+    do_train = False
+    do_finetune = False
+    num_epochs = 10
+    effective_batch_size = 60
+    gpu_batch_size = 20
+    learning_rate = 3e-5
+    fp16 = False
+    max_grad_norm = 1.0
+    save_best = True
+    save_last = False
+    imbalanced_task_weighting = True
+
+    # evaluation args
+    do_eval = False
+    eval_best = False
+    eval_last = False
+    
+    # task args
+    source_tasks = []
+    source_datasets = []
+    target_tasks = []
+    target_datasets = []
+
+    # TTiDB args
+    multitask = False
+    few_shot_percent = None
+    
+    # algorithm args
+    optimizer = "Adam"
+    weight_decay = 0.0
+
+    # misc. args
+    progress_bar = True
+    save_pred = False
+    resume = False
+
+    output_type = None
+    model_type = None
+    generation_config = None
+    device = None
+
+    def __init__(self, model_config: str, source_tasks: list, source_datasets: list, target_tasks: list, target_datasets: list, num_epochs: int, 
+        gpu_batch_size: int = 5, do_finetune: bool = False, do_train: bool = False, do_eval: bool = False, eval_best = True):
+        self.model_config = model_config
+        self.source_tasks = source_tasks
+        self.source_datasets = source_datasets
+        self.target_tasks = target_tasks
+        self.target_datasets = target_datasets
+        self.num_epochs = num_epochs
+        self.gpu_batch_size = gpu_batch_size
+        self.do_finetune = do_finetune
+        self.do_train = do_train
+        self.do_eval = do_eval
+        self.eval_best = eval_best
+
+        model_config_dict = configs.__dict__[f"{model_config}_config"]
+        self.model = model_config_dict["model"]
+        self.optimizer = model_config_dict["optimizer"]
+        self.learning_rate = model_config_dict["learning_rate"]
+        self.fp16 = model_config_dict["fp16"]
+        self.effective_batch_size = model_config_dict["effective_batch_size"]
+        self.max_dialogue_length = model_config_dict["max_dialogue_length"]
+
+        if "bert" in self.model:
+            self.output_type = "categorical"
+            self.output_type = "categorical"
+            self.model_type = "Encoder"
+        elif "gpt" in self.model:
+            self.output_type = "token"
+            self.model_type = "Decoder"
+            self.generation_config = configs.GPT2_generation_config
+        elif "t5" in self.model:
+            self.output_type = "token"
+            self.model_type = "EncoderDecoder"
+            self.generation_config = configs.t5_generation_config
+        else:
+            raise ValueError(f"Model {self.model} not supported")
+
+        if not self.cpu_only:
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        else:
+            self.device = "cpu"
+
+def main(config):
     # if multitask, then train on both source+target tasks, and dev is target only
     if config.multitask:
         config.train_datasets = config.source_datasets+config.target_datasets
