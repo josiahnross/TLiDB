@@ -108,6 +108,7 @@ def train(algorithm, datasets, config, logger, epoch_offset, best_val_metric):
 
         logger.write('\n')
         logger.flush()
+    return best_val_metric
 
 
 def evaluate(algorithm, datasets, config, logger, epoch, is_best):

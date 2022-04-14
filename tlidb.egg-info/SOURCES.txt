@@ -24,6 +24,7 @@ examples/losses.py
 examples/optimizers.py
 examples/results_analysis.py
 examples/run_experiment.py
+examples/test.py
 examples/train.py
 examples/utils.py
 examples/algorithms/DecoderAlgorithm.py

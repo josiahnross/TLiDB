@@ -69,7 +69,8 @@ class Config:
     device = None
 
     def __init__(self, model_config: str, source_tasks: list, source_datasets: list, target_tasks: list, target_datasets: list, num_epochs: int, 
-        gpu_batch_size: int = 5, do_finetune: bool = False, do_train: bool = False, do_eval: bool = False, eval_best = True):
+        gpu_batch_size: int = 5, do_finetune: bool = False, do_train: bool = False, do_eval: bool = False, eval_best = True, 
+        learning_rate = -1, effective_batch_size = -1):
         self.model_config = model_config
         self.source_tasks = source_tasks
         self.source_datasets = source_datasets
@@ -89,6 +90,11 @@ class Config:
         self.fp16 = model_config_dict["fp16"]
         self.effective_batch_size = model_config_dict["effective_batch_size"]
         self.max_dialogue_length = model_config_dict["max_dialogue_length"]
+
+        if learning_rate > 0:
+            self.learning_rate = learning_rate
+        if effective_batch_size > 0:
+            self.effective_batch_size = effective_batch_size
 
         if "bert" in self.model:
             self.output_type = "categorical"
@@ -110,7 +116,7 @@ class Config:
         else:
             self.device = "cpu"
 
-def main(config):
+def main(config: Config):
     # if multitask, then train on both source+target tasks, and dev is target only
     if config.multitask:
         config.train_datasets = config.source_datasets+config.target_datasets
@@ -132,7 +138,8 @@ def main(config):
         config.eval_tasks = config.target_tasks
 
     # create save path based only on train data
-    config.save_path_dir = get_savepath_dir(config.train_datasets, config.train_tasks, config.seed, config.log_and_model_dir, config.model, config.few_shot_percent, config.multitask)
+    config.save_path_dir = get_savepath_dir(config.train_datasets, config.train_tasks, config.seed, config.log_and_model_dir, 
+    config.model, config.few_shot_percent, config.learning_rate, config.effective_batch_size, config.multitask)
 
     # Initialize logs
     if os.path.exists(config.save_path_dir) and \
@@ -152,6 +159,7 @@ def main(config):
     else:
         logger = Logger(os.path.join(config.save_path_dir, 'log.txt'), mode)
 
+    training_best_val_metric = None
     set_seed(config.seed)
     if config.do_train:
         datasets = {}
@@ -184,7 +192,7 @@ def main(config):
             epoch_offset=0
             best_val_metric = None
 
-        train(algorithm, datasets, config, logger, epoch_offset, best_val_metric)
+        training_best_val_metric = train(algorithm, datasets, config, logger, epoch_offset, best_val_metric)
 
     if config.do_finetune:
         assert(config.target_datasets and config.target_tasks),"Must specify target datasets and tasks to finetune"
@@ -272,8 +280,8 @@ def main(config):
         eval_logger.write("EVALUATING\n")
         
         # load datasets for evaluation
+        # TODO Ask to make sure this splits properly
         datasets['test'] = load_datasets_split("test",config.eval_tasks, config.eval_datasets, config)
-
         # log configuration and dataset info
         log_config(config,eval_logger)
         log_dataset_info(datasets, eval_logger)
@@ -294,6 +302,7 @@ def main(config):
 
         eval_logger.close()
     logger.close()
+    return training_best_val_metric
 
 if __name__ == "__main__":
     config = argparser.parse_args()
