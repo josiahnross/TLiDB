@@ -1,6 +1,6 @@
 from tqdm import tqdm
 import torch
-from examples.utils import detach_and_clone, collate_list, concat_t_d, save_algorithm_if_needed, save_pred_if_needed
+from examples.utils import detach_and_clone, collate_list, concat_t_d, save_algorithm_if_needed, save_pred_if_needed, Logger
 from TLiDB.data_loaders.data_loaders import TLiDB_DataLoader
 
 def run_epoch(algorithm, datasets, config, logger, train):
@@ -76,9 +76,11 @@ def run_epoch(algorithm, datasets, config, logger, train):
     return results, epoch_y_pred
 
 
-def train(algorithm, datasets, config, logger, epoch_offset, best_val_metric):
+def train(algorithm, datasets, config, logger: Logger, minimalLogger: Logger, epoch_offset, best_val_metric):
     for epoch in range(epoch_offset, config.num_epochs):
         logger.write(f'\nEpoch {epoch}\n')
+        minimalLogger.write(f'Starting Epoch: {epoch} LR: {config.learning_rate} EBS: {config.effective_batch_size}')
+        minimalLogger.flush()
         # train
         run_epoch(algorithm, datasets['train'], config, logger, train=True)
 
@@ -100,6 +102,7 @@ def train(algorithm, datasets, config, logger, epoch_offset, best_val_metric):
         if is_best:
             best_val_metric = cur_val_metric
             logger.write(f'Epoch {epoch} gives best validation result so far.\n')
+            minimalLogger.write(f'Epoch: {epoch} LR: {config.learning_rate} EBS: {config.effective_batch_size} gives best validation result so far: {best_val_metric}.\n')
 
         # save algorithm and model
         save_algorithm_if_needed(algorithm, epoch, config, best_val_metric, is_best, logger)
@@ -107,7 +110,9 @@ def train(algorithm, datasets, config, logger, epoch_offset, best_val_metric):
         save_pred_if_needed(y_pred, epoch, config, is_best, config.save_path_dir)
 
         logger.write('\n')
+        minimalLogger.write('\n')
         logger.flush()
+        minimalLogger.flush()
     return best_val_metric
 
 

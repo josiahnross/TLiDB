@@ -88,10 +88,25 @@ def get_savepath_dir(datasets, tasks, seed, log_dir, model, few_shot_percent, le
     for dataset,task in zip(datasets, tasks):
         prefix += f"{dataset}.{task}/"
     if seed > -1:
-        prefix += f"seed.{seed}_"
+        prefix += f"seed.{seed}/"
     
     prefix += f"learningRate.{learning_rate}_"
     prefix += f"effectiveBatchSize.{effective_batch_size}_"
+    if prefix == "PRETRAINED_":
+        raise ValueError("Cannot create dir with empty name")
+
+    prefix = os.path.join(log_dir, prefix[:-1], model)
+    return prefix
+
+def get_savepath_dir_minimal(datasets, tasks, seed, log_dir, model, multitask=False):
+    prefix = "PRETRAINED_"
+    if multitask:
+        prefix = "MULTITASK_"
+    for dataset,task in zip(datasets, tasks):
+        prefix += f"{dataset}.{task}/"
+    if seed > -1:
+        prefix += f"seed.{seed}/"
+    
     if prefix == "PRETRAINED_":
         raise ValueError("Cannot create dir with empty name")
 
@@ -128,7 +143,7 @@ def save_algorithm_if_needed(algorithm, epoch, config, best_val_metric, is_best,
     if config.save_last:
         save_algorithm(algorithm,epoch,best_val_metric,os.path.join(config.save_path_dir,f"last_model.pt"),logger)
     if config.save_best and is_best:
-        save_algorithm(algorithm, epoch, best_val_metric,os.path.join(config.save_path_dir,f"best_model_E.{epoch}_Metric.{best_val_metric:.4f}.pt"),logger)
+        # save_algorithm(algorithm, epoch, best_val_metric,os.path.join(config.save_path_dir,f"best_model_E.{epoch}_Metric.{best_val_metric:.4f}.pt"),logger)
         save_algorithm(algorithm, epoch, best_val_metric,os.path.join(config.save_path_dir,f"best_model.pt"),logger)
 
 def save_pred_if_needed(y_pred, epoch, config, is_best, save_path_dir):

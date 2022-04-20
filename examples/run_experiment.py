@@ -116,7 +116,7 @@ class Config:
         else:
             self.device = "cpu"
 
-def main(config: Config):
+def main(config: Config, minimalLogger: Logger):
     # if multitask, then train on both source+target tasks, and dev is target only
     if config.multitask:
         config.train_datasets = config.source_datasets+config.target_datasets
@@ -159,11 +159,12 @@ def main(config: Config):
     else:
         logger = Logger(os.path.join(config.save_path_dir, 'log.txt'), mode)
 
+
     training_best_val_metric = None
     set_seed(config.seed)
     if config.do_train:
         datasets = {}
-
+        
         # load datasets for training
         datasets['train'] = load_datasets_split("train",config.train_tasks, config.train_datasets, config)
         datasets['dev'] = load_datasets_split("dev",config.dev_tasks, config.dev_datasets, config)
@@ -192,7 +193,7 @@ def main(config: Config):
             epoch_offset=0
             best_val_metric = None
 
-        training_best_val_metric = train(algorithm, datasets, config, logger, epoch_offset, best_val_metric)
+        training_best_val_metric = train(algorithm, datasets, config, logger, minimalLogger, epoch_offset, best_val_metric)
 
     if config.do_finetune:
         assert(config.target_datasets and config.target_tasks),"Must specify target datasets and tasks to finetune"
