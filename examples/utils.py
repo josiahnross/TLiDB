@@ -113,14 +113,17 @@ def get_savepath_dir_minimal(datasets, tasks, seed, log_dir, model, multitask=Fa
     prefix = os.path.join(log_dir, prefix[:-1], model)
     return prefix
 
-def append_to_save_path_dir(save_path_dir, datasets, tasks, few_shot_percent, seed):
+def append_to_save_path_dir(save_path_dir, datasets, tasks, few_shot_percent, seed, learning_rate, effective_batch_size):
     postfix = "FINETUNED_"
     if few_shot_percent:
         postfix += f"{few_shot_percent}_FEWSHOT_"
     for dataset,task in zip(datasets, tasks):
-        postfix += f"{dataset}.{task}_"
+        postfix += f"{dataset}.{task}/"
     if seed > -1:
-        postfix += f"seed.{seed}_"
+        postfix += f"seed.{seed}/"
+        
+    postfix += f"LR.{learning_rate}_"
+    postfix += f"EBS.{effective_batch_size}_"
     if postfix == "FINETUNED_":
         raise ValueError("Cannot create dir with empty name")
     return os.path.join(save_path_dir,postfix[:-1])
@@ -133,10 +136,29 @@ def save_algorithm(algorithm, epoch, best_val_metric, path, logger):
     torch.save(state, path)
     logger.write(f"Saved model to {path}\n")
 
+def GetAlgorithmState(algorithm, epoch, best_val_metric):
+    if algorithm == None:
+        return None
+    state = {}
+    state['algorithm'] = algorithm.state_dict()
+    state['epoch'] = epoch
+    state['best_val_metric'] = best_val_metric
+    return state
+
 def load_algorithm(algorithm, path, logger):
     state = torch.load(path)
     algorithm.load_state_dict(state['algorithm'])
     logger.write(f"Loaded model from {path}\n")
+    return state['epoch'], state['best_val_metric']
+
+def loadState(path: str, logger):
+    state = torch.load(path)
+    logger.write(f"Loaded model state from {path}\n")
+    return state
+
+def load_algorithmFromState(algorithm, state, logger):
+    algorithm.load_state_dict(state['algorithm'])
+    logger.write(f"Loaded model from already loaded state \n")
     return state['epoch'], state['best_val_metric']
 
 def save_algorithm_if_needed(algorithm, epoch, config, best_val_metric, is_best, logger):

@@ -9,8 +9,8 @@ if __name__ == "__main__":
         #'character_identification',
         #'question_answering', 
         # 'personality_detection'
-        #'relation_extraction',
-         'MELD_emotion_recognition'
+        'relation_extraction',
+        # 'MELD_emotion_recognition'
     ]
     seed = 12345
     print(torch.cuda.device_count())
@@ -18,8 +18,8 @@ if __name__ == "__main__":
     print(torch.cuda.is_available())
     print(torch.cuda.get_device_name(torch.cuda.current_device()))
 
-    learningRates = [1e-4, 1e-5, 1e-6]
-    effectiveBatchSizes = [10, 30, 60, 120]
+    learningRates = [1e-5] #[1e-4, 1e-5, 1e-6]
+    effectiveBatchSizes = [10]#[10, 30, 60, 120]
     percentToRemove = 0.45
     epochsPerRemove = 2
     for t in tasks:
@@ -33,7 +33,7 @@ if __name__ == "__main__":
         for bs in effectiveBatchSizes:
             for lr in learningRates:
                 results[(lr, bs)] = 0
-        for i in range(9):
+        for i in range(18, 30, 1):
             for lr, bs in results.keys():
                 # taskMinimallLogger.write(f"Starting Epoch: {epochsPerRemove*i} LR: {lr} EBS: {bs}\n")
                 # taskMinimallLogger.flush()

@@ -79,7 +79,7 @@ def run_epoch(algorithm, datasets, config, logger, train):
 def train(algorithm, datasets, config, logger: Logger, minimalLogger: Logger, epoch_offset, best_val_metric):
     for epoch in range(epoch_offset, config.num_epochs):
         logger.write(f'\nEpoch {epoch}\n')
-        minimalLogger.write(f'Starting Epoch: {epoch} LR: {config.learning_rate} EBS: {config.effective_batch_size}')
+        minimalLogger.write(f'Epoch: {epoch} LR: {config.learning_rate} EBS: {config.effective_batch_size}')
         minimalLogger.flush()
         # train
         run_epoch(algorithm, datasets['train'], config, logger, train=True)
@@ -98,11 +98,12 @@ def train(algorithm, datasets, config, logger: Logger, minimalLogger: Logger, ep
             is_best=True
         else:
             is_best = cur_val_metric > best_val_metric
-
+        
+        minimalLogger.write(' finished')
         if is_best:
             best_val_metric = cur_val_metric
             logger.write(f'Epoch {epoch} gives best validation result so far.\n')
-            minimalLogger.write(f'Epoch: {epoch} LR: {config.learning_rate} EBS: {config.effective_batch_size} gives best validation result so far: {best_val_metric}.\n')
+            minimalLogger.write(f' gives best validation result so far: {best_val_metric:0.4f}')
 
         # save algorithm and model
         save_algorithm_if_needed(algorithm, epoch, config, best_val_metric, is_best, logger)
