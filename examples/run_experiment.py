@@ -70,7 +70,7 @@ class Config:
 
     def __init__(self, model_config: str, source_tasks: list, source_datasets: list, target_tasks: list, target_datasets: list, num_epochs: int, 
         gpu_batch_size: int = 5, do_finetune: bool = False, do_train: bool = False, do_eval: bool = False, eval_best = True, 
-        learning_rate = -1, effective_batch_size = -1):
+        learning_rate = -1, effective_batch_size = -1, saved_model_dir = None, resume = False):
         self.model_config = model_config
         self.source_tasks = source_tasks
         self.source_datasets = source_datasets
@@ -82,6 +82,8 @@ class Config:
         self.do_train = do_train
         self.do_eval = do_eval
         self.eval_best = eval_best
+        self.saved_model_dir = saved_model_dir
+        self.resume = resume
 
         model_config_dict = configs.__dict__[f"{model_config}_config"]
         self.model = model_config_dict["model"]
