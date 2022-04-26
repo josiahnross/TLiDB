@@ -6,7 +6,8 @@ from utils import GetAlgorithmState, Logger, load_datasets_split, load_algorithm
         set_seed, log_dataset_info, get_savepath_dir, append_to_save_path_dir
 
 
-def TrainModel(config: Config, minimalLogger: Logger, algorithm, modelState, isModelStartedFinetune: bool):
+def TrainModel(config: Config, minimalLogger: Logger, algorithm, modelState, isModelStartedFinetune: bool,
+                targetSplitSeed: int=-1, targetSplitPercent: float=-1):
     # if multitask, then train on both source+target tasks, and dev is target only
     if config.multitask:
         config.train_datasets = config.source_datasets+config.target_datasets
@@ -57,8 +58,8 @@ def TrainModel(config: Config, minimalLogger: Logger, algorithm, modelState, isM
         datasets = {}
         
         # load datasets for training
-        datasets['train'] = load_datasets_split("train",config.train_tasks, config.train_datasets, config)
-        datasets['dev'] = load_datasets_split("dev",config.dev_tasks, config.dev_datasets, config)
+        datasets['train'] = load_datasets_split("train",config.train_tasks, config.train_datasets, config, targetSplitSeed, targetSplitPercent)
+        datasets['dev'] = load_datasets_split("dev",config.dev_tasks, config.dev_datasets, config, targetSplitSeed, targetSplitPercent)
 
         # log configuration and dataset info
         logger.write("TRAINING\n")

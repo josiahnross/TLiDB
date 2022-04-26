@@ -8,13 +8,13 @@ from TLiDB.datasets.get_dataset import get_dataset
 from TLiDB.data_loaders.data_loaders import get_dataloader
 from TLiDB.metrics.initializer import get_metric_computer
 
-def load_datasets_split(split, tasks, datasets, config):
+def load_datasets_split(split, tasks, datasets, config, splitSeed=-1, splitPercent=-1):
     split_datasets = {"datasets":[], "loaders":[], "metrics":[]}
     for t, d in zip(tasks, datasets):
         cur_dataset = get_dataset(dataset=d,task=t,dataset_folder=config.data_dir,
                             model_type=config.model_type,
                             max_dialogue_length=config.max_dialogue_length,
-                            split=split,few_shot_percent=config.few_shot_percent)
+                            split=split,few_shot_percent=config.few_shot_percent, seed=splitSeed, splitPercent=splitPercent)
         if config.frac < 1.0:
             cur_dataset.random_subsample(config.frac)
 
