@@ -113,7 +113,8 @@ def get_savepath_dir_minimal(datasets, tasks, seed, log_dir, model, multitask=Fa
     prefix = os.path.join(log_dir, prefix[:-1], model)
     return prefix
 
-def append_to_save_path_dir(save_path_dir, datasets, tasks, few_shot_percent, seed, learning_rate, effective_batch_size):
+def append_to_save_path_dir(save_path_dir, datasets, tasks, few_shot_percent, seed, learning_rate, effective_batch_size,
+                            splitSeed = -1, splitPercent=-1):
     postfix = "FINETUNED_"
     if few_shot_percent:
         postfix += f"{few_shot_percent}_FEWSHOT_"
@@ -122,6 +123,9 @@ def append_to_save_path_dir(save_path_dir, datasets, tasks, few_shot_percent, se
     if seed > -1:
         postfix += f"seed.{seed}/"
         
+    if splitSeed >= 0 and splitPercent >= 0:
+        postfix += f"splitSeed.{splitSeed}/"
+        postfix += f"SplitPercent.{splitPercent}_"
     postfix += f"LR.{learning_rate}_"
     postfix += f"EBS.{effective_batch_size}_"
     if postfix == "FINETUNED_":
@@ -158,7 +162,8 @@ def loadState(path: str, logger):
 
 def load_algorithmFromState(algorithm, state, logger):
     algorithm.load_state_dict(state['algorithm'])
-    logger.write(f"Loaded model from already loaded state \n")
+    if logger is not None:
+        logger.write(f"Loaded model from already loaded state \n")
     return state['epoch'], state['best_val_metric']
 
 def save_algorithm_if_needed(algorithm, epoch, config, best_val_metric, is_best, logger):

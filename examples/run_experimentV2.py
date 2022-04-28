@@ -6,6 +6,26 @@ from utils import GetAlgorithmState, Logger, load_datasets_split, load_algorithm
         set_seed, log_dataset_info, get_savepath_dir, append_to_save_path_dir
 
 
+def EvalModel(config: Config, minimalLogger: Logger, algorithm, modelState):
+
+    assert(config.target_datasets and config.target_tasks),"Must specify target datasets and tasks to finetune"
+    datasets = {}
+    
+    datasets['test'] = load_datasets_split("test",config.target_tasks, config.target_datasets, config)
+    # log configuration and dataset info
+    # log_config(config,eval_logger)
+    # log_dataset_info(datasets, eval_logger)
+
+    if algorithm is None:
+        # initialize algorithm
+        algorithm = initialize_algorithm(config, datasets)  
+    
+    epoch, best_val_metric = load_algorithmFromState(algorithm, modelState, None)
+    evalMetrics = evaluate(algorithm, datasets, config, minimalLogger, epoch)
+    minimalLogger.flush()
+    return evalMetrics
+
+
 def TrainModel(config: Config, minimalLogger: Logger, algorithm, modelState, isModelStartedFinetune: bool,
                 targetSplitSeed: int=-1, targetSplitPercent: float=-1):
     # if multitask, then train on both source+target tasks, and dev is target only
@@ -111,15 +131,15 @@ def TrainModel(config: Config, minimalLogger: Logger, algorithm, modelState, isM
         config.finetune_dev_datasets = config.finetune_datasets
 
         # load datasets for finetuning
-        datasets['train'] = load_datasets_split("train",config.finetune_train_tasks,config.finetune_train_datasets,config)
-        datasets['dev'] = load_datasets_split("dev", config.finetune_dev_tasks, config.finetune_dev_datasets, config)
+        datasets['train'] = load_datasets_split("train",config.finetune_train_tasks,config.finetune_train_datasets,config, splitSeed=targetSplitSeed, splitPercent=targetSplitPercent)
+        datasets['dev'] = load_datasets_split("dev", config.finetune_dev_tasks, config.finetune_dev_datasets, config, splitSeed=targetSplitSeed, splitPercent=targetSplitPercent)
         if algorithm == None:
             # initialize algorithm
             algorithm = initialize_algorithm(config, datasets)
         
         # update save path with fine-tuning details
         config.save_path_dir = append_to_save_path_dir(config.save_path_dir, config.finetune_datasets, config.finetune_tasks, config.few_shot_percent, config.seed, 
-                                                        config.learning_rate, config.effective_batch_size)
+                                                        config.learning_rate, config.effective_batch_size, targetSplitSeed, targetSplitPercent)
 
         # always load best pretrained model
         # model_path = os.path.join(config.save_path_dir, 'best_model.pt')
@@ -162,56 +182,6 @@ def TrainModel(config: Config, minimalLogger: Logger, algorithm, modelState, isM
         epoch_offset = config.num_epochs
         finetune_logger.close()
 
-    if config.do_eval:
-        assert(config.target_datasets and config.target_tasks),"Must specify target datasets and tasks to finetune"
-        datasets = {}
-        # If coming from training/fine-tuning, 
-        #   this means we already have a save_dir_path from training/fine-tuning and a model saved there
-        if config.do_finetune or config.do_train:
-            pass
-        elif config.saved_model_dir:
-            # if user explcitily specified a model to evaluate, then use that
-            config.save_path_dir = config.saved_model_dir
-        elif (config.finetune_datasets and config.finetune_tasks) and (config.train_datasets and config.train_tasks):
-            # Given all the datasets and tasks, we can infer the path to the fine-tuned model
-            config.save_path_dir = append_to_save_path_dir(config.save_path_dir, config.finetune_datasets, config.finetune_tasks, config.few_shot_percent, config.seed)
-        else:
-            raise ValueError("To run evaluation, use:\n--saved_model_dir to specify the model to evaluate OR\
-                \n--finetune_datasets and --finetune_tasks and --train_datasets and --train_tasks to infer the path to the model")
-
-        # ensure user has specified a model to evaluate
-        assert(not(config.eval_last and config.eval_best)), "cannot evaluate both last and best models"
-        assert(config.eval_last or config.eval_best), "must evaluate at least one model"
-        
-        # create logger for evaluation
-        if config.debug:
-            eval_logger = Logger(mode='w')
-        else:
-            eval_logger = Logger(os.path.join(config.save_path_dir, 'log.txt'), mode="a")
-        eval_logger.write("EVALUATING\n")
-        
-        # load datasets for evaluation
-        # TODO Ask to make sure this splits properly
-        datasets['test'] = load_datasets_split("test",config.eval_tasks, config.eval_datasets, config)
-        # log configuration and dataset info
-        log_config(config,eval_logger)
-        log_dataset_info(datasets, eval_logger)
-
-        # initialize algorithm
-        algorithm = initialize_algorithm(config, datasets)  
-        
-        # load evaluation model
-        if config.eval_last:
-            eval_model_path = os.path.join(config.save_path_dir, "last_model.pt")
-            is_best = False
-        else:
-            eval_model_path = os.path.join(config.save_path_dir, 'best_model.pt')
-            is_best = True
-
-        epoch, best_val_metric = load_algorithm(algorithm, eval_model_path,eval_logger)
-        evaluate(algorithm, datasets, config, eval_logger, epoch, is_best)
-
-        eval_logger.close()
     if logger != None:
         logger.close()
     return training_best_val_metric, GetAlgorithmState(algorithm, epoch_offset, training_best_val_metric), algorithm

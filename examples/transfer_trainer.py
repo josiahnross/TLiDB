@@ -1,5 +1,5 @@
 from asyncio import tasks
-from run_experimentV2 import TrainModel
+from run_experimentV2 import EvalModel, TrainModel
 from utils import Logger, get_savepath_dir_minimal, loadState
 import torch
 import os
@@ -40,17 +40,17 @@ if __name__ == "__main__":
     }
     sourceTasks = [
         #'emory_emotion_recognition', 
-        #'reading_comprehension', 
+        'reading_comprehension', 
         #'character_identification',
         #'question_answering', 
         #'personality_detection',
         # 'relation_extraction',
-        'MELD_emotion_recognition'
+        # 'MELD_emotion_recognition'
     ]
     targetTasks = [
-        # 'personality_detection',
-        # 'relation_extraction',
-        # 'emory_emotion_recognition', 
+        'personality_detection',
+        'relation_extraction',
+        'emory_emotion_recognition', 
         'reading_comprehension', 
         'question_answering', 
         'MELD_emotion_recognition',
@@ -62,7 +62,7 @@ if __name__ == "__main__":
         0.6,
         0.8
     ]
-    startPercentIndex = 0
+    startSplitPercentIndex = 1
     startSourceIndex = 0
     startTargetIndex = 0
     seed = 12345
@@ -76,7 +76,8 @@ if __name__ == "__main__":
     maxEpochs = 40
     maxNotImprovingGap = 4
     emptyCsvPath = f"empty{dataset}.csv"
-    for splitPercentIndex in range(startPercentIndex, len(splitPercents), 1):
+    for splitPercentIndex in range(startSplitPercentIndex, len(splitPercents), 1):
+        splitPercent = splitPercents[splitPercentIndex]
         splitPercentDataPath = GetSavedCsvDataDirectory(dataset, model)
         if not os.path.exists(splitPercentDataPath):
             os.makedirs(splitPercentDataPath)
@@ -84,23 +85,28 @@ if __name__ == "__main__":
         if not os.path.exists(splitPercentDataPath):
             CreateNewEmptyCSV(emptyCsvPath, splitPercentDataPath)
         
-        splitPercent = splitPercents[startPercentIndex]
-        currentSourceTaskStartIndex = startSourceIndex if splitPercentIndex == startPercentIndex else 0
+        currentSourceTaskStartIndex = startSourceIndex if splitPercentIndex == startSplitPercentIndex else 0
         for stIndex in range(currentSourceTaskStartIndex, len(sourceTasks), 1):
             st = sourceTasks[stIndex]
             sourceSavePath = GetSavedSourceModelDirectory(dataset, model, st)
             if not os.path.exists(sourceSavePath):
                 os.makedirs(sourceSavePath)
-
-            sourceLoggerPath = os.path.join(sourceSavePath, 'logMinimal.txt')
+            sourceLoggerPath = sourceSavePath
+            if splitPercent != 1:
+                sourceLoggerPath += f'splitSeed.{splitSeed}/'
+                if not os.path.exists(sourceLoggerPath):
+                    os.makedirs(sourceLoggerPath)
+                sourceLoggerPath += f'splitPercent_{splitPercent}_'
+            
+            sourceLoggerPath += 'logMinimal.txt'
             if not os.path.exists(sourceLoggerPath):
                 taskMinimallLogger = Logger(sourceLoggerPath, mode='w')
-                taskMinimallLogger.write(f"Starting Source Task: {st}")
+                taskMinimallLogger.write(f"Starting Source Task: {st} Split Percent: {splitPercent} Split Seed: {splitSeed}")
             else:
                 taskMinimallLogger = Logger(sourceLoggerPath, mode='a')
-                taskMinimallLogger.write(f"\n\nRestarting Source Task: {st}")
+                taskMinimallLogger.write(f"\n\nRestarting Source Task: {st} Split Percent: {splitPercent} Split Seed: {splitSeed}")
             currentTargetTaskStartIndex = startTargetIndex if stIndex == startSourceIndex else 0
-            for ttIndex in range(currentTargetTaskStartIndex, len(targetTasks), 0):
+            for ttIndex in range(currentTargetTaskStartIndex, len(targetTasks), 1):
                 tt = targetTasks[ttIndex]
                 if tt == st:
                     continue
@@ -119,12 +125,13 @@ if __name__ == "__main__":
                 for i in range(maxEpochs):
                     config.num_epochs = i + 1
                     best_val_metric, modelState, modelAlgorithm = TrainModel(config, taskMinimallLogger,modelAlgorithm, modelState,i!=0, 
-                                                targetSplitSeed= -1 if splitPercent >= 1 else splitSeed, targetSplitPercent= -1 if splitPercent >= 1 else splitSeed)
+                                                targetSplitSeed= -1 if splitPercent >= 1 else splitSeed, targetSplitPercent= -1 if splitPercent >= 1 else splitPercent)
                     if last_best_metric == None or best_val_metric > last_best_metric:
                         last_best_metric = best_val_metric
                         last_best_metric_index = i
                     elif i-last_best_metric_index >= maxNotImprovingGap:
                         taskMinimallLogger.write(f"Target Task: {tt} Finished in {i} Epochs, Stopped Due To Lack of Improvement\n")
                         break
-                SaveElementIntoCSV(splitPercentDataPath, st, tt, last_best_metric)
+                evalMetrics = EvalModel(config, taskMinimallLogger, modelAlgorithm, modelState)
+                SaveElementIntoCSV(splitPercentDataPath, st, tt, evalMetrics[0])
             taskMinimallLogger.write(f"Done with all listed target taks for source task: {st}")

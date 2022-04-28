@@ -117,9 +117,10 @@ def train(algorithm, datasets, config, logger: Logger, minimalLogger: Logger, ep
     return best_val_metric
 
 
-def evaluate(algorithm, datasets, config, logger, epoch, is_best):
+def evaluate(algorithm, datasets, config, logger, epoch): #, is_best):
     algorithm.eval()
     torch.set_grad_enabled(False)
+    evalMetrics = []
     for split in datasets:
         for dataset, loader, metric in zip(datasets[split]['datasets'], datasets[split]['loaders'], datasets[split]['metrics']):
             epoch_y_true = []
@@ -144,9 +145,15 @@ def evaluate(algorithm, datasets, config, logger, epoch, is_best):
             epoch_y_true = collate_list(epoch_y_true)
 
             r, r_str = metric.compute(epoch_y_pred, epoch_y_true)
+            aveMetric = sum(r.values())/(len(r))
+            if isinstance(aveMetric, torch.Tensor):
+                evalMetrics.append(aveMetric.item())
+            else:
+                evalMetrics.append(aveMetric)
             r['epoch'] = epoch
             logger.write(f"Eval on {split} split at epoch {epoch}: {dataset.dataset_name} {dataset.task}-\n{r_str}\n")
 
-            # skip saving train data as the dataloader will shuffle data
-            if split != "train":
-                save_pred_if_needed(y_pred, epoch, config, is_best, config.save_path_dir)
+            # # skip saving train data as the dataloader will shuffle data
+            # if split != "train":
+            #     save_pred_if_needed(y_pred, epoch, config, is_best, config.save_path_dir)
+    return evalMetrics
