@@ -60,6 +60,14 @@ class EncoderAlgorithm(Algorithm):
     def requires_metric_calculation(self):
         return True
 
+    def _masked_language_modeling_preprocessing(self, X, y_true, metadata):
+        X = [self.replace_sep_token(x) for x in X]
+        return X, y_true, metadata
+
+    def _masked_language_modeling_postprocessing(self, X, outputs, y_true, transformed_y_true, metadata):
+        y_pred = multiclass_logits_to_pred(outputs)
+        return y_pred, transformed_y_true, metadata
+
     def _classification_preprocessing(self, X, y_true, metadata):
         X = [self.replace_sep_token(x) for x in X]
         return X, y_true, metadata

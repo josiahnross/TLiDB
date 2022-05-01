@@ -44,6 +44,10 @@ class Bert(TLiDB_model):
         elif task_type == "multiple_choice":
         # elif dataset.task in MULTIPLE_CHOICE_TASKS:
             return torch.nn.Linear(self.model.config.hidden_size, 1)
+        elif task_type == "masked_language_modelling":
+            from transformers import BertForMaskedLM
+            model = BertForMaskedLM.from_pretrained("bert-base-uncased")
+            return model.cls
         else:
             raise ValueError(f"Unsupported task: {dataset.task}")
 
@@ -56,6 +60,8 @@ class Bert(TLiDB_model):
             return self.span_extraction
         elif task_type == 'multiple_choice':
             return self.multiple_choice
+        elif task_type == 'masked_language_modeling':
+            return self.masked_language_modeling
         else:
             raise ValueError(f"Unsupported task: {task_type}")
 
@@ -84,6 +90,9 @@ class Bert(TLiDB_model):
         t_d = concat_t_d(metadata['task'],metadata['dataset_name'])
         outputs = getattr(self, f"transform_{task_type}_outputs")(inputs, outputs, t_d, metadata)
         return outputs
+
+    # def transform_masked_language_modeling_outputs(self, inputs, outputs, t_d, metadata):
+
 
     def transform_classification_outputs(self,inputs, outputs, t_d, metadata):
         outputs = [self.classifiers[t_d]['labels'].index(y) for y in outputs]
@@ -123,6 +132,13 @@ class Bert(TLiDB_model):
     
     def transform_multiple_choice_outputs(self, inputs, outputs, t_d, metadata):
         return torch.tensor(outputs, dtype=torch.long)
+
+    def masked_language_modelling(self, tokenized_sequences, task, dataset_name):
+        t_d = concat_t_d(task,dataset_name)
+        outputs = self.model(input_ids=tokenized_sequences.input_ids, attention_mask=tokenized_sequences.attention_mask)['pooler_output']
+        outputs = self.dropout(outputs)
+        logits = self.classifiers[t_d]['classifier'](outputs)
+        return logits
 
     # classify a sequence
     def sequence_classification(self, tokenized_sequences, task, dataset_name):
