@@ -6,27 +6,8 @@ import os
 import configs
 import numpy as np
 from Config import Config
+from newUtils import *
 
-def GetSavedSourceModelDirectory(dataset, model, task):
-    model_config_dict = configs.__dict__[f"{model}_config"]
-    modelName = model_config_dict["model"]
-    return f"./logs_and_models/PRETRAINED_SourceTasks/{dataset}/{modelName}/{task}/"
-    
-def GetSavedCsvDataDirectory(dataset, model):
-    model_config_dict = configs.__dict__[f"{model}_config"]
-    modelName = model_config_dict["model"]
-    return f"./logs_and_models/PRETRAINED_SourceTasks/{dataset}/{modelName}/"
-
-def SaveElementIntoCSV(path: str, sourceTask: str, targetTask:str, value):
-    csvData = np.genfromtxt(path, delimiter=',', dtype=str)
-    row = np.where(csvData[:, 0] == sourceTask)[0]
-    col = np.where(csvData[0, :] == targetTask)[0]
-    csvData[row, col] = str(value)
-    np.savetxt(path, csvData, delimiter=',', fmt='%s')
-
-def CreateNewEmptyCSV(emptyCsvPath, path):
-    csvData = np.genfromtxt(emptyCsvPath, delimiter=',', dtype=str)
-    np.savetxt(path, csvData, delimiter=',', fmt='%s')
 
 def TrainNoTransfer(model, dataset, task, splitPercentDataPath, sourceSavePath, seed, splitSeed, splitPercent, maxNotImprovingGap, 
                     maxEpochs, taskMinimallLogger, learningRate, effectiveBatchSize, loadLastSavedModel):
@@ -67,7 +48,7 @@ def TrainNoTransfer(model, dataset, task, splitPercentDataPath, sourceSavePath, 
             break
     modelState = loadState(modelSavePath + "best_model.pt", taskMinimallLogger)
     evalMetrics = EvalModel(config, taskMinimallLogger, None, modelState)
-    SaveElementIntoCSV(splitPercentDataPath, tt, tt, evalMetrics[0])
+    SaveElementIntoDataCSV(splitPercentDataPath, tt, tt, evalMetrics[0])
     taskMinimallLogger.flush()
 
 if __name__ == "__main__":
@@ -119,17 +100,11 @@ if __name__ == "__main__":
     dataset = "Friends"
     maxEpochs = 40
     maxNotImprovingGap = 4
-    emptyCsvPath = f"empty{dataset}.csv"
     hasException = False
     for splitPercentIndex in range(startSplitPercentIndex, len(splitPercents), 1):
         splitPercent = splitPercents[splitPercentIndex]
-        splitPercentDataPath = GetSavedCsvDataDirectory(dataset, model)
-        if not os.path.exists(splitPercentDataPath):
-            os.makedirs(splitPercentDataPath)
-        splitPercentDataPath += f"data_seed_{splitSeed}_splitPercent{splitPercent}.csv"
-        if not os.path.exists(splitPercentDataPath):
-            CreateNewEmptyCSV(emptyCsvPath, splitPercentDataPath)
-        
+
+        splitPercentDataPath = GetOrMakeEvalDataCSV(dataset, model, splitSeed, splitPercent)      
 
         currentSourceTaskStartIndex = startSourceIndex if splitPercentIndex == startSplitPercentIndex else 0
         for stIndex in range(currentSourceTaskStartIndex, len(sourceTasks), 1):
@@ -212,7 +187,7 @@ if __name__ == "__main__":
                                                         config.learning_rate, config.effective_batch_size, targetSplitSeed, targetSplitPercent)
                 modelState = loadState(appenedSavePath + "/best_model.pt", taskMinimallLogger)
                 evalMetrics = EvalModel(config, taskMinimallLogger, None, modelState)
-                SaveElementIntoCSV(splitPercentDataPath, st, tt, evalMetrics[0])
+                SaveElementIntoDataCSV(splitPercentDataPath, st, tt, evalMetrics[0])
             if hasException:
                 break
             taskMinimallLogger.write(f"Done with all listed target taks for source task: {st}")

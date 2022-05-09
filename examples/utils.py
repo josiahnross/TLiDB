@@ -140,6 +140,12 @@ def save_algorithm(algorithm, epoch, best_val_metric, path, logger):
     torch.save(state, path)
     logger.write(f"Saved model to {path}\n")
 
+def save_state(state, path, logger):
+    torch.save(state, path)
+    if logger is not None:
+        logger.write(f"Saved model to {path}\n")
+
+
 def GetAlgorithmState(algorithm, epoch, best_val_metric):
     if algorithm == None:
         return None

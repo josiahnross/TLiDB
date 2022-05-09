@@ -1,34 +1,14 @@
-from run_experimentV2 import TrainSourceModel
-from utils import Logger, get_savepath_dir_minimal, loadState
+from run_experimentV2 import TrainSourceModel, EvalModel
+from utils import Logger, get_savepath_dir_minimal, loadState, save_state
 import torch
 import os
 import configs
 import numpy as np
 from Config import Config
+from newUtils import *
 
-def SaveHyperparameterntoCSV(path, task, lr, ebs, validation, epochs):
-    csvData = np.genfromtxt(path, delimiter=',', dtype=str)
-    col = np.where(csvData[0, :] == task)[0]
-    csvData[1, col] = str(lr)
-    csvData[2, col] = str(ebs)
-    csvData[3, col] = str(validation)
-    csvData[4, col] = str(epochs)
-    np.savetxt(path, csvData, delimiter=',', fmt='%s')
 
-def GetSavedHyperparameterCSVDirectory(dataset, model, seed):
-    model_config_dict = configs.__dict__[f"{model}_config"]
-    modelName = model_config_dict["model"]
-    return f"./logs_and_models/PRETRAINING/{dataset}/{modelName}/seed.{seed}/"
 
-def GetTempModelSavePath(dataset, model, task, seed):
-    model_config_dict = configs.__dict__[f"{model}_config"]
-    modelName = model_config_dict["model"]
-    return f"PRETRAINED_{dataset}/{modelName}/seed.{seed}/{task}/"
-
-def GetTempModelSaveLR_EBS(dataset, model, task, seed, lr, ebs):
-    model_config_dict = configs.__dict__[f"{model}_config"]
-    modelName = model_config_dict["model"]
-    return f"PRETRAINED_{dataset}/{modelName}/seed.{seed}/{task}/LR_{lr}_EBS_{ebs}/"
 if __name__ == "__main__":
     tasks = [
         # 'emory_emotion_recognition', 
@@ -40,6 +20,7 @@ if __name__ == "__main__":
         # 'MELD_emotion_recognition'
     ]
     seed = 12345
+    splitSeed = 31415
     print(torch.cuda.device_count())
     print(torch.cuda.current_device())
     print(torch.cuda.is_available())
@@ -54,7 +35,7 @@ if __name__ == "__main__":
     effectiveBatchSizes = [10]#[10, 30, 60, 120]
     percentToRemove = 0.45
     epochsPerRemove = 2
-    startEpoch = 0
+    startEpochGroup = 0
 
     modelDataSetDir = GetSavedHyperparameterCSVDirectory(dataset, model, seed)
     modelDataSetCSVPath = modelDataSetDir + f"HyperparameterInfos.csv"
@@ -91,18 +72,18 @@ if __name__ == "__main__":
                 gpu_batch_size=10, learning_rate=0, effective_batch_size=0)
         config.seed= seed
         config.save_last = True
-        for i in range(startEpoch, int(maxEpochs/epochsPerRemove), 1):
+        for i in range(startEpochGroup, int(maxEpochs/epochsPerRemove), 1):
             for lr, bs in results.keys():
                 # taskMinimallLogger.write(f"Starting Epoch: {epochsPerRemove*i} LR: {lr} EBS: {bs}\n")
                 # taskMinimallLogger.flush()
                 config.learning_rate = lr
                 config.effective_batch_size = bs
-                config.num_epochs = i + epochsPerRemove
+                config.num_epochs = (i+1) + epochsPerRemove
                 (prevBest, prevImproveEpoch, modelState, modelAlgorithm) = results[(lr, bs)]
                 savePathWithLR_EBS = GetTempModelSaveLR_EBS(dataset, model, t, seed, lr, bs)
                 if not os.path.exists(savePathWithLR_EBS):
                     os.makedirs(savePathWithLR_EBS) 
-                best_val_metric, modelState, modelAlgorithm = TrainSourceModel(config, taskMinimallLogger,modelAlgorithm, modelState, save_path_dir=savePathDir)
+                best_val_metric, modelState, modelAlgorithm = TrainSourceModel(config, taskMinimallLogger,modelAlgorithm, modelState, save_path_dir=savePathWithLR_EBS)
                 if best_val_metric > prevBest:
                     prevBest = best_val_metric
                     prevImproveEpoch = i * epochsPerRemove
@@ -128,8 +109,17 @@ if __name__ == "__main__":
                                                                              bestFinishedInfo[3])
                 
                 savePathWithLR_EBS = GetTempModelSaveLR_EBS(dataset, model, t, seed, bestFinishedInfo[0], bestFinishedInfo[1])
-                modelState = loadState(modelSavePath + "best_model.pt", taskMinimallLogger)
-                # TODO Save best model in good spot and eval
+                modelState = loadState(savePathWithLR_EBS + "best_model.pt", taskMinimallLogger)
+
+                # Save best model in good spot 
+                convenientModelPath = GetSavedSourceModelDirectory(dataset, model, t)
+                save_state(modelState, os.path.join(convenientModelPath,f"best_model.pt"),taskMinimallLogger)
+
+                # Eval model and save result in CSV
+                evalMetrics = EvalModel(config, taskMinimallLogger, None, modelState)
+                
+                splitPercentDataPath = GetOrMakeEvalDataCSV(dataset, model, splitSeed, 1)  
+                SaveElementIntoDataCSV(splitPercentDataPath, t, t, evalMetrics[0])
                 taskMinimallLogger.write(f"\n\n Finished Task: {t} \n\n")
                 break
             taskMinimallLogger.flush()
