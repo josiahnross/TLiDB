@@ -1,6 +1,8 @@
+from pickle import NONE
 from Config import Config
 from algorithms.initializer import initialize_algorithm
 from train import train,evaluate
+from newUtils import LoadModelStateIfExists
 import os
 from utils import GetAlgorithmState, Logger, load_datasets_split, load_algorithm, load_algorithmFromState, log_config, \
         set_seed, log_dataset_info, get_savepath_dir, append_to_save_path_dir
@@ -65,10 +67,15 @@ def TrainSourceModel(config: Config, minimalLogger: Logger, algorithm, modelStat
     # log configuration and dataset info
     logger.write("TRAINING\n")
 
+    if modelState is None and config.resume:
+        modelState = LoadModelStateIfExists(config.save_path_dir + "last_model.pt", logger)
+
     if algorithm == None:
         # initialize algorithm
         algorithm = initialize_algorithm(config, datasets)
-
+    
+    saved_prev_epoch = 0
+    best_val_metric = 0
     if modelState is not None:
         saved_prev_epoch, saved_best_val_metric = load_algorithmFromState(algorithm, modelState, logger) 
         epoch_offset = saved_prev_epoch + 1
@@ -78,11 +85,14 @@ def TrainSourceModel(config: Config, minimalLogger: Logger, algorithm, modelStat
         best_val_metric = None
         logger.write("Starting from scratch\n")
 
+    if epoch_offset >= config.num_epochs:
+        logger.close()
+        return best_val_metric, modelState, algorithm
+        
     training_best_val_metric = train(algorithm, datasets, config, logger, minimalLogger, epoch_offset, best_val_metric)
-    original_epoch_offset = epoch_offset
     epoch_offset =  config.num_epochs
     logger.close()
-    return training_best_val_metric, GetAlgorithmState(algorithm, original_epoch_offset, training_best_val_metric), algorithm
+    return training_best_val_metric, GetAlgorithmState(algorithm, epoch_offset-1, training_best_val_metric), algorithm
 
 
 def TrainModel(config: Config, minimalLogger: Logger, algorithm, modelState, isModelStartedFinetune: bool,
@@ -113,7 +123,6 @@ def TrainModel(config: Config, minimalLogger: Logger, algorithm, modelState, isM
     logger = None
 
     epoch_offset = 0
-    original_epoch_offset = epoch_offset
     training_best_val_metric = None
     set_seed(config.seed)
 
@@ -186,11 +195,9 @@ def TrainModel(config: Config, minimalLogger: Logger, algorithm, modelState, isM
         log_dataset_info(datasets, finetune_logger)
 
         training_best_val_metric = train(algorithm, datasets, config, finetune_logger, minimalLogger, epoch_offset, best_val_metric)
-        original_epoch_offset = epoch_offset
-        epoch_offset = config.num_epochs
         finetune_logger.close()
 
     if logger != None:
         logger.close()
-    return training_best_val_metric, GetAlgorithmState(algorithm, original_epoch_offset, training_best_val_metric), algorithm
+    return training_best_val_metric, GetAlgorithmState(algorithm, epoch_offset-1, training_best_val_metric), algorithm
 

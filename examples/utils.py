@@ -203,6 +203,7 @@ class Logger(object):
     def __init__(self, fpath=None, mode='w'):
         self.console = sys.stdout
         self.file = None
+        self.subLogger = None
         if fpath is not None:
             self.file = open(fpath, mode)
 
@@ -215,16 +216,21 @@ class Logger(object):
     def __exit__(self, *args):
         self.close()
 
-    def write(self, msg):
-        self.console.write(msg)
+    def write(self, msg, writeToConsole=True):
+        if writeToConsole:
+            self.console.write(msg)
         if self.file is not None:
             self.file.write(msg)
+        if self.subLogger is not None:
+            self.subLogger.write(msg, False)
 
     def flush(self):
         self.console.flush()
         if self.file is not None:
             self.file.flush()
             os.fsync(self.file.fileno())
+        if self.subLogger is not None:
+            self.subLogger.flush()
 
     def close(self):
         # self.console.close()

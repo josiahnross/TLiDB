@@ -1,6 +1,7 @@
 import configs
 import numpy as np
 import os
+from utils import Logger, loadState
 def GetSavedSourceModelDirectory(dataset, model, task):
     model_config_dict = configs.__dict__[f"{model}_config"]
     modelName = model_config_dict["model"]
@@ -48,9 +49,14 @@ def GetSavedHyperparameterCSVDirectory(dataset, model, seed):
 def GetTempModelSavePath(dataset, model, task, seed):
     model_config_dict = configs.__dict__[f"{model}_config"]
     modelName = model_config_dict["model"]
-    return f"/mnt/bhd/josiahnross/TransferLearningResearchProject/TLiDB/PRETRAINED_{dataset}/{modelName}/seed.{seed}/{task}/"
+    return f"/mnt/bhd/josiahnross/TransferLearningResearchProject/TLiDB/logs_and_models/PRETRAINED_{dataset}/{modelName}/seed.{seed}/{task}/"
 
 def GetTempModelSaveLR_EBS(dataset, model, task, seed, lr, ebs):
     model_config_dict = configs.__dict__[f"{model}_config"]
     modelName = model_config_dict["model"]
-    return f"/mnt/bhd/josiahnross/TransferLearningResearchProject/TLiDB/PRETRAINED_{dataset}/{modelName}/seed.{seed}/{task}/LR_{lr}_EBS_{ebs}/"
+    return f"/mnt/bhd/josiahnross/TransferLearningResearchProject/TLiDB/logs_and_models/PRETRAINED_{dataset}/{modelName}/seed.{seed}/{task}/LR_{lr}_EBS_{ebs}/"
+
+def LoadModelStateIfExists(path: str, logger: Logger):
+    if os.path.exists(path):
+        return loadState(path, logger)
+    return None
