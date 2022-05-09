@@ -152,12 +152,14 @@ def GetAlgorithmState(algorithm, epoch, best_val_metric):
 def load_algorithm(algorithm, path, logger):
     state = torch.load(path)
     algorithm.load_state_dict(state['algorithm'])
-    logger.write(f"Loaded model from {path}\n")
+    if logger is not None:
+        logger.write(f"Loaded model from {path}\n")
     return state['epoch'], state['best_val_metric']
 
 def loadState(path: str, logger):
     state = torch.load(path)
-    logger.write(f"Loaded model state from {path}\n")
+    if logger is not None:
+        logger.write(f"Loaded model state from {path}\n")
     return state
 
 def load_algorithmFromState(algorithm, state, logger):

@@ -2,6 +2,7 @@ from tqdm import tqdm
 import torch
 from examples.utils import detach_and_clone, collate_list, concat_t_d, save_algorithm_if_needed, save_pred_if_needed, Logger
 from TLiDB.data_loaders.data_loaders import TLiDB_DataLoader
+from datetime import datetime
 
 def run_epoch(algorithm, datasets, config, logger, train):
     """
@@ -79,7 +80,7 @@ def run_epoch(algorithm, datasets, config, logger, train):
 def train(algorithm, datasets, config, logger: Logger, minimalLogger: Logger, epoch_offset, best_val_metric):
     for epoch in range(epoch_offset, config.num_epochs):
         logger.write(f'\nEpoch {epoch}\n')
-        minimalLogger.write(f'Epoch: {epoch} LR: {config.learning_rate} EBS: {config.effective_batch_size}')
+        minimalLogger.write(f'Epoch: {epoch} LR: {config.learning_rate} EBS: {config.effective_batch_size} Time: {datetime.now().strftime("%m/%d %H:%M:%S")}')
         minimalLogger.flush()
         # train
         run_epoch(algorithm, datasets['train'], config, logger, train=True)
@@ -151,7 +152,8 @@ def evaluate(algorithm, datasets, config, logger, epoch): #, is_best):
             else:
                 evalMetrics.append(aveMetric)
             r['epoch'] = epoch
-            logger.write(f"Eval on {split} split at epoch {epoch}: {dataset.dataset_name} {dataset.task}-\n{r_str}\n")
+            if logger is not None:
+                logger.write(f"Eval on {split} split at epoch {epoch}: {dataset.dataset_name} {dataset.task}-\n{r_str}\n")
 
             # # skip saving train data as the dataloader will shuffle data
             # if split != "train":
