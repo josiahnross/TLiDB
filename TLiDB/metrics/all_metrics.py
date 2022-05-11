@@ -304,6 +304,8 @@ class token_F1(StringMetric):
 
                 if isinstance(t, str):
                     f1 = _get_token_f1_macro(p.split(), t.split())
+                elif torch.is_tensor(t):
+                    f1 = _get_token_f1_macro(p, t)
                 elif isinstance(t, list):
                     # if multiple ground truths, select the max
                     f1 = self._metric_max_over_ground_truths(_get_token_f1_macro, p.split(), [t_.split() for t_ in t])
