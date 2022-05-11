@@ -69,7 +69,7 @@ class TLiDB_model:
     def init_weights(self):
         for layer_name, layer in self.layers.items():
             # main model is always Transformers-based and does it's own init
-            if layer_name == "model":
+            if layer_name == "model" or layer_name == 'masked_language_modeling_Friends_classifier':
                 pass
             elif isinstance(layer, torch.nn.Module):
                 torch.nn.init.xavier_uniform_(layer.weight)
