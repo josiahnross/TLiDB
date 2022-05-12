@@ -107,6 +107,8 @@ class Friends_dataset(TLiDB_Dataset):
         self._y_array = []
         self._metadata_fields = []
         self._metadata_array = []
+        if task == "masked_language_modeling":
+            few_shot_percent = None
         split_ids = load_split_ids(self._dataset_name, dataset_folder, split, few_shot_percent)
         self._load_data(task, split_ids)
         self._num_classes = len(self.task_labels)
@@ -118,16 +120,16 @@ class Friends_dataset(TLiDB_Dataset):
         return loader(task,split_ids)
 
     def _load_masked_language_modeling_task(self, task, split_ids):
-        dialogues = []
         for datum in self.dataset['data']:
-            dialogue = []
-            for turn in datum['dialogue']:
-                dialogue.append([" ".join(turn['speakers']), turn['utterance']])
+            if datum['dialogue_id'] in split_ids:
+                dialogue = []
+                for turn in datum['dialogue']:
+                    dialogue.append([" ".join(turn['speakers']), turn['utterance']])
 
-            truncated_dialogue = self._truncate_dialogue(dialogue)
-            str_dialogue = self._convert_dialogue_to_string(truncated_dialogue)
-            self._input_array.append(str_dialogue)
-            self._y_array.append(str_dialogue)
+                truncated_dialogue = self._truncate_dialogue(dialogue)
+                str_dialogue = self._convert_dialogue_to_string(truncated_dialogue)
+                self._input_array.append(str_dialogue)
+                self._y_array.append(str_dialogue)
 
 
     def _load_utterance_level_classification_task(self, task, split_ids):

@@ -276,6 +276,11 @@ class token_F1(StringMetric):
 
         # Taken from https://github.com/google-research/text-to-text-transfer-transformer/blob/main/t5/evaluation/metrics.py
         def _get_token_f1_macro(y_pred, y_true):
+            if torch.is_tensor(y_pred):
+                y_pred = y_pred.tolist()
+            if torch.is_tensor(y_true):
+                y_true = y_true.tolist()
+
             common_token_counts = (
                 Counter(y_true) &
                 Counter(y_pred))
