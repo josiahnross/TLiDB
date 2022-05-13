@@ -6,18 +6,18 @@ import configs
 import numpy as np
 from Config import Config
 from newUtils import *
-
-
+import sys
+import traceback
 
 if __name__ == "__main__":
     tasks = [
-        # 'emory_emotion_recognition', 
-        # 'reading_comprehension', 
-        #'character_identification',
+        #'emory_emotion_recognition', 
+        #'reading_comprehension', 
+        'character_identification',
         #'question_answering', 
-        'personality_detection'
+        #'personality_detection',
         #'relation_extraction',
-        # 'MELD_emotion_recognition'
+        #'MELD_emotion_recognition'
     ]
     seed = 12345
     splitSeed = 31415
@@ -30,10 +30,10 @@ if __name__ == "__main__":
     dataset = "Friends"
     maxEpochs = 40
     maxNotImprovingGapGroup = 2
-    resumeFromLastModel = True
+    resumeFromLastModel = False
 
-    learningRates = [1e-5] #[1e-4, 1e-5, 1e-6]
-    effectiveBatchSizes = [10, 30, 60]#[10, 30, 60, 120]
+    learningRates = [1e-4, 1e-5]
+    effectiveBatchSizes = [10, 30, 60, 120]
     percentToRemove = 0.45
     epochsPerRemove = 2
     startEpochGroup = 0
@@ -44,12 +44,8 @@ if __name__ == "__main__":
     if not os.path.exists(modelDataSetLogsDir):
         os.makedirs(modelDataSetLogsDir)
     
-    loggerCount = 0
-    overallLogDir = modelDataSetLogsDir + f"overallLogger{loggerCount}.txt"
-    while os.path.exists(overallLogDir):
-        loggerCount+=1
-        overallLogDir = modelDataSetLogsDir + f"overallLogger{loggerCount}.txt"
-    overallLogger = Logger(overallLogDir, mode='w')
+    hasException = False
+    overallLogger = GetOverallLogger(modelDataSetLogsDir, sys.argv[1] if sys.argv[1] else None)
     for t in tasks:
         # tempConfig = Config("bert", [t], ["Friends"], [t], ["Friends"], 0, do_train=True, eval_best=True, gpu_batch_size=10)
         # savePathDir = get_savepath_dir_minimal(tempConfig.source_datasets, tempConfig.source_tasks, seed, tempConfig.log_and_model_dir, 
@@ -79,8 +75,8 @@ if __name__ == "__main__":
         # config.resume = resumeFromLastModel
         for i in range(startEpochGroup, int(maxEpochs/epochsPerRemove), 1):
             for lr, bs in results.keys():
-                # taskMinimallLogger.write(f"Starting Epoch: {epochsPerRemove*i} LR: {lr} EBS: {bs}\n")
-                # taskMinimallLogger.flush()
+                torch.cuda.empty_cache()
+                taskMinimallLogger.write("\n")
                 config.learning_rate = lr
                 config.effective_batch_size = bs
                 config.num_epochs = (i+1) * epochsPerRemove
@@ -89,18 +85,25 @@ if __name__ == "__main__":
                 if not os.path.exists(savePathWithLR_EBS):
                     os.makedirs(savePathWithLR_EBS) 
                 if modelState is None and resumeFromLastModel:
-                    modelState = LoadModelStateIfExists(savePathWithLR_EBS + "last_model.pt", taskMinimallLogger)
+                    modelState, prevBest, prevImproveEpochGroup = LoadModelIfExitstsWithLastUpdateEpoch(savePathWithLR_EBS, taskMinimallLogger, prevImproveEpochGroup)
                     if modelState is not None:
-                        bestModelState = LoadModelStateIfExists(savePathWithLR_EBS + "best_model.pt", None)
-                        prevImproveEpochGroup = int(bestModelState['epoch']/epochsPerRemove)
-                        prevBest = bestModelState['best_val_metric']
-
-                best_val_metric, modelState, modelAlgorithm = TrainSourceModel(config, taskMinimallLogger,modelAlgorithm, modelState, save_path_dir=savePathWithLR_EBS,
-                                                                            targetSplitSeed=splitSeed, targetSplitPercent=0.1)
+                        prevImproveEpochGroup = int(prevImproveEpochGroup/epochsPerRemove)
+               
+                try:
+                    best_val_metric, modelState, modelAlgorithm = TrainSourceModel(config, taskMinimallLogger,modelAlgorithm, modelState, save_path_dir=savePathWithLR_EBS)
+                                                                            #, targetSplitSeed=splitSeed, targetSplitPercent=0.2)
+                except Exception as e:
+                    hasException = True
+                    taskMinimallLogger.write(f"\n\n ERROR: {e}\n")
+                    taskMinimallLogger.write(traceback.format_exc())
+                    taskMinimallLogger.flush()
+                    break
                 if best_val_metric > prevBest:
                     prevBest = best_val_metric
                     prevImproveEpochGroup = i
                 results[(lr, bs)] = (prevBest, prevImproveEpochGroup, modelState, modelAlgorithm)
+            if hasException:
+                break
             paramsToRemove = int(len(results) * percentToRemove)
             sortedParams = sorted(results, key=lambda k: results[k][0])
             worstParams = sortedParams[0:paramsToRemove]
@@ -141,5 +144,4 @@ if __name__ == "__main__":
                 taskMinimallLogger.write(f"\n\n Finished Task: {t} \n\n")
                 break
             taskMinimallLogger.flush()
-
-    print(results)
+    

@@ -3,6 +3,7 @@ import sys
 import random
 import numpy as np
 import torch
+import copy
 
 from TLiDB.datasets.get_dataset import get_dataset
 from TLiDB.data_loaders.data_loaders import get_dataloader
@@ -150,7 +151,14 @@ def GetAlgorithmState(algorithm, epoch, best_val_metric):
     if algorithm == None:
         return None
     state = {}
-    state['algorithm'] = algorithm.state_dict()
+    stateDict = algorithm.state_dict().copy()
+    for k in stateDict['model']:
+        if torch.is_tensor(stateDict['model'][k]):
+            gpuV = stateDict['model'][k]
+            stateDict['model'][k] = gpuV.cpu()
+            del gpuV
+    
+    state['algorithm'] = stateDict
     state['epoch'] = epoch
     state['best_val_metric'] = best_val_metric
     return state

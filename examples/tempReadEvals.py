@@ -57,11 +57,15 @@ if __name__ == "__main__":
         'character_identification',
     ]
     splitPercents = [
+        #0.2,
+        #0.4,
+        #0.6,
+        #0.8,
         1
     ]
     startSplitPercentIndex = 0
     startSourceIndex = 0
-    startTargetIndex = 2
+    startTargetIndex = 0
     seed = 12345
     splitSeed = 31415
     print(torch.cuda.device_count())
@@ -95,7 +99,13 @@ if __name__ == "__main__":
                 if tt == st:
                     continue
                 lr, bs = tasksHyperParams[tt]
-                targetSavePath = sourceSavePath+ f"FINETUNED_{dataset}.{tt}/seed.{seed}/LR.{lr}_EBS.{bs}/"
+                if splitPercent == 1:
+                    if tt == st:
+                        targetSavePath = sourceSavePath
+                    else:
+                        targetSavePath = sourceSavePath + f"FINETUNED_{dataset}.{tt}/seed.{seed}/LR.{lr}_EBS.{bs}/"
+                else:
+                    targetSavePath = sourceSavePath + f"FINETUNED_{dataset}.{tt}/seed.{seed}/splitSeed.{splitSeed}/SplitPercent.{splitPercent}_LR.{lr}_EBS.{bs}/"
                 modelState = loadState(targetSavePath + "best_model.pt", None)
                 config = Config(model, [st], [dataset], [tt], [dataset], 1, do_train=False, do_finetune=True, eval_best=True, gpu_batch_size=10,
                 learning_rate=lr, effective_batch_size=bs, saved_model_dir=sourceSavePath)

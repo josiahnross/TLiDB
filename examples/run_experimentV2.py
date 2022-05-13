@@ -92,7 +92,9 @@ def TrainSourceModel(config: Config, minimalLogger: Logger, algorithm, modelStat
     training_best_val_metric = train(algorithm, datasets, config, logger, minimalLogger, epoch_offset, best_val_metric)
     epoch_offset =  config.num_epochs
     logger.close()
-    return training_best_val_metric, GetAlgorithmState(algorithm, epoch_offset-1, training_best_val_metric), algorithm
+    retState = GetAlgorithmState(algorithm, epoch_offset-1, training_best_val_metric)
+    del algorithm
+    return training_best_val_metric, retState, None # algorithm
 
 
 def TrainModel(config: Config, minimalLogger: Logger, algorithm, modelState, isModelStartedFinetune: bool,
@@ -195,6 +197,7 @@ def TrainModel(config: Config, minimalLogger: Logger, algorithm, modelState, isM
         log_dataset_info(datasets, finetune_logger)
 
         training_best_val_metric = train(algorithm, datasets, config, finetune_logger, minimalLogger, epoch_offset, best_val_metric)
+        epoch_offset =  config.num_epochs
         finetune_logger.close()
 
     if logger != None:

@@ -5,12 +5,12 @@ from utils import Logger, loadState
 def GetSavedSourceModelDirectory(dataset, model, task):
     model_config_dict = configs.__dict__[f"{model}_config"]
     modelName = model_config_dict["model"]
-    return f"./logs_and_models/PRETRAINED_SourceTasks/{dataset}/{modelName}/{task}/"
+    return f"/mnt/bhd/josiahnross/TransferLearningResearchProject/TLiDB/logs_and_models/PRETRAINED_SourceTasks/{dataset}/{modelName}/{task}/"
     
 def GetSavedCsvDataDirectory(dataset, model):
     model_config_dict = configs.__dict__[f"{model}_config"]
     modelName = model_config_dict["model"]
-    return f"./logs_and_models/PRETRAINED_SourceTasks/{dataset}/{modelName}/"
+    return f"/mnt/bhd/josiahnross/TransferLearningResearchProject/TLiDB/logs_and_models/PRETRAINED_SourceTasks/{dataset}/{modelName}/"
 
 def SaveElementIntoDataCSV(path: str, sourceTask: str, targetTask:str, value):
     csvData = np.genfromtxt(path, delimiter=',', dtype=str)
@@ -44,7 +44,7 @@ def SaveHyperparameterntoCSV(path, task, lr, ebs, validation, epochs):
 def GetSavedHyperparameterCSVDirectory(dataset, model, seed):
     model_config_dict = configs.__dict__[f"{model}_config"]
     modelName = model_config_dict["model"]
-    return f"./logs_and_models/PRETRAINING/{dataset}/{modelName}/seed.{seed}/"
+    return f"/mnt/bhd/josiahnross/TransferLearningResearchProject/TLiDB/logs_and_models/PRETRAINING/{dataset}/{modelName}/seed.{seed}/"
 
 def GetTempModelSavePath(dataset, model, task, seed):
     model_config_dict = configs.__dict__[f"{model}_config"]
@@ -60,3 +60,34 @@ def LoadModelStateIfExists(path: str, logger: Logger):
     if os.path.exists(path):
         return loadState(path, logger)
     return None
+
+def CreatePathIfNotExist(path: str):
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+def GetOverallLogger(path:str, name:str):
+    CreatePathIfNotExist(path)
+    if name is not None:
+        overallLogDir = path + f"overallLogger{name}.txt"
+        if not os.path.exists(overallLogDir):
+            overallLogger = Logger(overallLogDir, mode='w')
+        else:
+            overallLogger = Logger(overallLogDir, mode='a')
+            overallLogger.write(f"\n\nRestarting Overall Logger\n\n")
+    else:
+        loggerCount = 0
+        overallLogDir = path + f"overallLogger{loggerCount}.txt"
+        while os.path.exists(overallLogDir):
+            loggerCount+=1
+            overallLogDir = path + f"overallLogger{loggerCount}.txt"
+        overallLogger = Logger(overallLogDir, mode='w')
+    return overallLogger
+
+def LoadModelIfExitstsWithLastUpdateEpoch(path:str, logger:Logger, bestVal:float =0, lastImproveEpoch:int=0):
+    modelState = LoadModelStateIfExists(path + "last_model.pt", logger)
+    if modelState is not None:
+        bestModelState = LoadModelStateIfExists(path + "best_model.pt", None)
+        bestVal = bestModelState['best_val_metric']
+        lastImproveEpoch = bestModelState['epoch']
+        return modelState, bestVal, lastImproveEpoch
+    return None, bestVal, lastImproveEpoch 

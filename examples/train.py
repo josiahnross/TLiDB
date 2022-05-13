@@ -3,6 +3,7 @@ import torch
 from examples.utils import detach_and_clone, collate_list, concat_t_d, save_algorithm_if_needed, save_pred_if_needed, Logger
 from TLiDB.data_loaders.data_loaders import TLiDB_DataLoader
 from datetime import datetime
+import GPUtil
 
 def run_epoch(algorithm, datasets, config, logger, train):
     """
@@ -45,11 +46,14 @@ def run_epoch(algorithm, datasets, config, logger, train):
         # These should already be detached, but in some versions they won't get garbage
         #   collected properly if not detached again
         epoch_y_true[batch_t_d].append(detach_and_clone(batch_results['y_true']))
+        del batch_results['y_true']
         y_pred = detach_and_clone(batch_results['y_pred'])
+        del batch_results['y_pred']
         
         epoch_y_pred[batch_t_d].append(y_pred)
 
         total_loss[batch_t_d] += detach_and_clone(batch_results['objective']['loss_value'])
+        del batch_results['objective']['loss_value']
         desc = "Train losses" if train else "Validation losses"
         for t_d in task_datasets:
             desc += f" | {t_d}: {total_loss[t_d]/(step[t_d]+1):0.4f}"
