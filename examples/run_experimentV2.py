@@ -87,7 +87,8 @@ def TrainSourceModel(config: Config, minimalLogger: Logger, algorithm, modelStat
 
     if epoch_offset >= config.num_epochs:
         logger.close()
-        return best_val_metric, modelState, algorithm
+        del algorithm
+        return best_val_metric, modelState, None
         
     training_best_val_metric = train(algorithm, datasets, config, logger, minimalLogger, epoch_offset, best_val_metric)
     epoch_offset =  config.num_epochs

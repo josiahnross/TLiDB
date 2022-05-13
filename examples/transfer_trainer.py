@@ -34,13 +34,14 @@ def TrainNoTransfer(model, dataset, task, splitPercentDataPath, sourceSavePath, 
     last_best_metric = None
     last_best_metric_index = 0
     if loadLastSavedModel:
-        modelState = LoadModelStateIfExists(modelSavePath + "last_model.pt", taskMinimallLogger)
+        modelState, last_best_metric, last_best_metric_index = LoadModelIfExitstsWithLastUpdateEpoch(modelSavePath, taskMinimallLogger, last_best_metric, last_best_metric_index)
+        # modelState = LoadModelStateIfExists(modelSavePath + "last_model.pt", taskMinimallLogger)
         # modelState = loadState(modelSavePath + "last_model.pt", taskMinimallLogger)
         if modelState is not None:
             startEpoch = modelState['epoch'] + 1
-            last_best_metric = modelState['best_val_metric']
-            bestModelState = loadState(modelSavePath + "best_model.pt", taskMinimallLogger)
-            last_best_metric_index = bestModelState['epoch']
+            # last_best_metric = modelState['best_val_metric']
+            # bestModelState = loadState(modelSavePath + "best_model.pt", taskMinimallLogger)
+            # last_best_metric_index = bestModelState['epoch']
     modelAlgorithm = None
     if startEpoch - last_best_metric_index >= maxNotImprovingGap:
         taskMinimallLogger.write(f"No Transfer Task: {st} Already Finished\n")
@@ -55,10 +56,10 @@ def TrainNoTransfer(model, dataset, task, splitPercentDataPath, sourceSavePath, 
             elif i-last_best_metric_index >= maxNotImprovingGap:
                 taskMinimallLogger.write(f"No Transfer Task: {st} Finished in {i} Epochs, Stopped Due To Lack of Improvement\n")
                 break
-    taskMinimallLogger.flush()
-    modelState = loadState(modelSavePath + "best_model.pt", taskMinimallLogger)
-    evalMetrics = EvalModel(config, taskMinimallLogger, None, modelState)
-    SaveElementIntoDataCSV(splitPercentDataPath, st, st, evalMetrics[0])
+        taskMinimallLogger.flush()
+        modelState = loadState(modelSavePath + "best_model.pt", taskMinimallLogger)
+        evalMetrics = EvalModel(config, taskMinimallLogger, None, modelState)
+        SaveElementIntoDataCSV(splitPercentDataPath, st, st, evalMetrics[0])
     taskMinimallLogger.flush()
 
 if __name__ == "__main__":
@@ -105,8 +106,8 @@ if __name__ == "__main__":
     ]
     startSplitPercentIndex = 0
     startSourceIndex = 1
-    startTargetIndex = 0
-    loadLastSavedModel = False
+    startTargetIndex = 3
+    loadLastSavedModel = True
     trainNoTransfer = True
     gpu_batch_size = 5
     seed = 12345
@@ -203,33 +204,40 @@ if __name__ == "__main__":
                     # modelState = loadState(appenedSavePath + "/last_model.pt", taskMinimallLogger)
                     if modelState is not None:
                         startEpoch = modelState['epoch'] + 1
+                    else:
+                        modelState = loadState(modelSavePath + "best_model.pt", taskMinimallLogger)
                 else:                                   
                     modelState = loadState(modelSavePath + "best_model.pt", taskMinimallLogger)
                 modelAlgorithm = None
-                for i in range(startEpoch, maxEpochs, 1):
-                    config.num_epochs = i + 1
-                    try:
-                        best_val_metric, modelState, modelAlgorithm = TrainModel(config, taskMinimallLogger,modelAlgorithm, modelState, i!=0, 
-                                                    targetSplitSeed=targetSplitSeed, targetSplitPercent=targetSplitPercent)
-                    except Exception as e:
-                        hasException = True
-                        taskMinimallLogger.write(f"\n\n ERROR: {e}\n")
-                        taskMinimallLogger.write(traceback.format_exc())
-                        taskMinimallLogger.flush()
+                if startEpoch - last_best_metric_index >= maxNotImprovingGap:
+                    taskMinimallLogger.write(f"No Source Task: {st} Target Task: {tt} Already Finished\n")
+                else:
+                    for i in range(startEpoch, maxEpochs, 1):
+                        config.num_epochs = i + 1
+                        try:
+                            best_val_metric, modelState, modelAlgorithm = TrainModel(config, taskMinimallLogger,modelAlgorithm, modelState, i!=0, 
+                                                        targetSplitSeed=targetSplitSeed, targetSplitPercent=targetSplitPercent)
+                        except Exception as e:
+                            hasException = True
+                            taskMinimallLogger.write(f"\n\n ERROR: {e}\n")
+                            taskMinimallLogger.write(traceback.format_exc())
+                            taskMinimallLogger.flush()
+                            break
+                        if last_best_metric == None or best_val_metric > last_best_metric:
+                            last_best_metric = best_val_metric
+                            last_best_metric_index = i
+                        elif i-last_best_metric_index >= maxNotImprovingGap:
+                            taskMinimallLogger.write(f"Target Task: {tt} Finished in {i} Epochs, Stopped Due To Lack of Improvement\n")
+                            break
+                    if hasException:
                         break
-                    if last_best_metric == None or best_val_metric > last_best_metric:
-                        last_best_metric = best_val_metric
-                        last_best_metric_index = i
-                    elif i-last_best_metric_index >= maxNotImprovingGap:
-                        taskMinimallLogger.write(f"Target Task: {tt} Finished in {i} Epochs, Stopped Due To Lack of Improvement\n")
-                        break
-                if hasException:
-                    break
-                appenedSavePath = append_to_save_path_dir(modelSavePath, config.target_datasets, config.target_tasks, config.few_shot_percent, config.seed, 
-                                                        config.learning_rate, config.effective_batch_size, targetSplitSeed, targetSplitPercent)
-                modelState = loadState(appenedSavePath + "/best_model.pt", taskMinimallLogger)
-                evalMetrics = EvalModel(config, taskMinimallLogger, None, modelState)
-                SaveElementIntoDataCSV(splitPercentDataPath, st, tt, evalMetrics[0])
+                    appenedSavePath = append_to_save_path_dir(modelSavePath, config.target_datasets, config.target_tasks, config.few_shot_percent, config.seed, 
+                                                            config.learning_rate, config.effective_batch_size, targetSplitSeed, targetSplitPercent)
+                    modelState = loadState(appenedSavePath + "/best_model.pt", taskMinimallLogger)
+                    evalMetrics = EvalModel(config, taskMinimallLogger, None, modelState)
+                    SaveElementIntoDataCSV(splitPercentDataPath, st, tt, evalMetrics[0])
             if hasException:
                 break
             taskMinimallLogger.write(f"Done with all listed target taks for source task: {st}")
+        if hasException:
+            break

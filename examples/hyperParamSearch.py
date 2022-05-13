@@ -13,11 +13,12 @@ if __name__ == "__main__":
     tasks = [
         #'emory_emotion_recognition', 
         #'reading_comprehension', 
-        'character_identification',
+        #'character_identification',
         #'question_answering', 
         #'personality_detection',
         #'relation_extraction',
-        #'MELD_emotion_recognition'
+        #'MELD_emotion_recognition',
+        'masked_language_modeling'
     ]
     seed = 12345
     splitSeed = 31415
@@ -26,7 +27,7 @@ if __name__ == "__main__":
     print(torch.cuda.is_available())
     print(torch.cuda.get_device_name(torch.cuda.current_device()))
 
-    model = "t5"
+    model = "bert"
     dataset = "Friends"
     maxEpochs = 40
     maxNotImprovingGapGroup = 2

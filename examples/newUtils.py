@@ -89,5 +89,8 @@ def LoadModelIfExitstsWithLastUpdateEpoch(path:str, logger:Logger, bestVal:float
         bestModelState = LoadModelStateIfExists(path + "best_model.pt", None)
         bestVal = bestModelState['best_val_metric']
         lastImproveEpoch = bestModelState['epoch']
+        del bestModelState
+        if logger is not None:
+            logger.flush()
         return modelState, bestVal, lastImproveEpoch
     return None, bestVal, lastImproveEpoch 

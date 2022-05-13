@@ -171,7 +171,15 @@ def load_algorithm(algorithm, path, logger):
     return state['epoch'], state['best_val_metric']
 
 def loadState(path: str, logger):
-    state = torch.load(path)
+    state = torch.load(path, map_location=torch.device('cpu'))
+    # stateDict = state['algorithm'].copy()
+    # for k in stateDict['model']:
+    #     if torch.is_tensor(stateDict['model'][k]):
+    #         gpuV = stateDict['model'][k]
+    #         stateDict['model'][k] = gpuV.cpu()
+    #         del gpuV
+    # del state['algorithm']
+    # state['algorithm'] = stateDict
     if logger is not None:
         logger.write(f"Loaded model state from {path}\n")
     return state
