@@ -121,6 +121,14 @@ class StringMetric:
         Output (return_dict=True):
             - results (dict): Dictionary of results, mapping metric.agg_metric_field to avg_metric
         """
+
+        if torch.is_tensor(y_pred):
+            agg_metric = self._compute(y_pred, y_true)
+            results = {
+                self.agg_metric_field: agg_metric
+            }
+            return results
+
         if numel(y_true) == 0:
             agg_metric = torch.tensor(0., device=y_true.device)
         else:

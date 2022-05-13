@@ -44,6 +44,10 @@ class Bert(TLiDB_model):
         elif task_type == "multiple_choice":
         # elif dataset.task in MULTIPLE_CHOICE_TASKS:
             return torch.nn.Linear(self.model.config.hidden_size, 1)
+        elif task_type == "masked_language_modeling":
+            from transformers import BertForMaskedLM
+            model = BertForMaskedLM.from_pretrained("bert-base-uncased")
+            return model.cls
         else:
             raise ValueError(f"Unsupported task: {dataset.task}")
 
@@ -56,6 +60,8 @@ class Bert(TLiDB_model):
             return self.span_extraction
         elif task_type == 'multiple_choice':
             return self.multiple_choice
+        elif task_type == 'masked_language_modeling':
+            return self.masked_language_modeling
         else:
             raise ValueError(f"Unsupported task: {task_type}")
 
@@ -75,6 +81,23 @@ class Bert(TLiDB_model):
         else:
             return_offsets_mapping = False
 
+        if metadata['task'] == "masked_language_modeling":
+            tokenized_inputs = self.tokenizer(inputs, padding="max_length",truncation=True, max_length=512,
+                                        return_offsets_mapping=return_offsets_mapping,return_tensors="pt")
+            rand = torch.rand(tokenized_inputs.input_ids.shape)
+            mask_arr = (rand < 0.15) * (tokenized_inputs.input_ids != 101) * \
+                (tokenized_inputs.input_ids != 102) * (tokenized_inputs.input_ids != 0)
+
+            selection = []
+
+            for i in range(tokenized_inputs.input_ids.shape[0]):
+                selection.append(torch.flatten(mask_arr[i].nonzero()).tolist())
+
+            for i in range(tokenized_inputs.input_ids.shape[0]):
+                tokenized_inputs.input_ids[i, selection[i]] = self.tokenizer.mask_token_id
+
+            return tokenized_inputs
+
         tokenized_inputs = self.tokenizer(inputs, padding="longest",pad_to_multiple_of=8,truncation=True,
                                         return_offsets_mapping=return_offsets_mapping,return_tensors="pt")
         return tokenized_inputs
@@ -84,6 +107,15 @@ class Bert(TLiDB_model):
         t_d = concat_t_d(metadata['task'],metadata['dataset_name'])
         outputs = getattr(self, f"transform_{task_type}_outputs")(inputs, outputs, t_d, metadata)
         return outputs
+
+    def transform_masked_language_modeling_outputs(self, inputs, outputs, t_d, metadata):
+        if 'return_offsets_mapping' in metadata:
+            return_offsets_mapping = metadata['return_offsets_mapping']
+        else:
+            return_offsets_mapping = False
+        tokenized_outputs = self.tokenizer(outputs, padding="max_length",truncation=True, max_length=512,
+                                        return_offsets_mapping=return_offsets_mapping,return_tensors="pt")
+        return tokenized_outputs['input_ids']
 
     def transform_classification_outputs(self,inputs, outputs, t_d, metadata):
         outputs = [self.classifiers[t_d]['labels'].index(y) for y in outputs]
@@ -123,6 +155,13 @@ class Bert(TLiDB_model):
     
     def transform_multiple_choice_outputs(self, inputs, outputs, t_d, metadata):
         return torch.tensor(outputs, dtype=torch.long)
+
+    def masked_language_modeling(self, tokenized_sequences, task, dataset_name):
+        t_d = concat_t_d(task,dataset_name)
+        outputs = self.model(input_ids=tokenized_sequences.input_ids, attention_mask=tokenized_sequences.attention_mask)['last_hidden_state']
+        outputs = self.dropout(outputs)
+        logits = self.classifiers[t_d]['classifier'](outputs)
+        return logits
 
     # classify a sequence
     def sequence_classification(self, tokenized_sequences, task, dataset_name):

@@ -51,7 +51,7 @@ class Friends_dataset(TLiDB_Dataset):
     _tasks = [
         'emory_emotion_recognition', 'reading_comprehension', 'character_identification',
         'question_answering', 'personality_detection', 'relation_extraction',
-        'MELD_emotion_recognition', 'response_generation'
+        'MELD_emotion_recognition', 'response_generation', 'masked_language_modeling'
     ]
     _url = "https://drive.google.com/uc?export=download&id=1QK_XX-d38fKeJlcTcoMT9ku3VZn6bv6H"
     _task_metadatas = {
@@ -93,6 +93,10 @@ class Friends_dataset(TLiDB_Dataset):
         "response_generation": {
             "prompt": "", "type":"response_generation","loader":"response_generation",
             "max_decode_tokens":128
+        },
+        "masked_language_modeling": {
+            "prompt": "", "type": "masked_language_modeling", "loader":"masked_language_modeling",
+            "collate_type": "masked_language_modeling", "max_decode_tokens": 512
         }
     }
     def __init__(self, task, dataset_folder, model_type, split, max_dialogue_length, few_shot_percent=None, seed=-1, splitPercent=-1):
@@ -103,6 +107,8 @@ class Friends_dataset(TLiDB_Dataset):
         self._y_array = []
         self._metadata_fields = []
         self._metadata_array = []
+        if task == "masked_language_modeling":
+            few_shot_percent = None
         split_ids = load_split_ids(self._dataset_name, dataset_folder, split, few_shot_percent, seed, splitPercent)
         self._load_data(task, split_ids)
         self._num_classes = len(self.task_labels)
@@ -112,6 +118,19 @@ class Friends_dataset(TLiDB_Dataset):
         # get the data loader, based on whether the task is utterance level/dialogue level/span extraction/etc.
         loader = getattr(self, f"_load_{self._task_metadata['loader']}_task")
         return loader(task,split_ids)
+
+    def _load_masked_language_modeling_task(self, task, split_ids):
+        for datum in self.dataset['data']:
+            if datum['dialogue_id'] in split_ids:
+                dialogue = []
+                for turn in datum['dialogue']:
+                    dialogue.append([" ".join(turn['speakers']), turn['utterance']])
+
+                truncated_dialogue = self._truncate_dialogue(dialogue)
+                str_dialogue = self._convert_dialogue_to_string(truncated_dialogue)
+                self._input_array.append(str_dialogue)
+                self._y_array.append(str_dialogue)
+
 
     def _load_utterance_level_classification_task(self, task, split_ids):
         for datum in self.dataset['data']:
@@ -280,7 +299,7 @@ class Friends_dataset(TLiDB_Dataset):
     def _collate_encoder(self, batch):
         X, y, metadata = [], [], {}
         for item in batch:
-            if self._task_metadata['collate_type'] == "classification":
+            if self._task_metadata['collate_type'] == "classification" or self._task_metadata['collate_type'] == "masked_language_modeling":
                 X.append(item[0])
             elif self._task_metadata['collate_type'] == "character_span_extraction":
                 X.append(self._join_strings(item[0]['entity_list'],"[SEP]",item[0]['question'],"[SEP]",item[0]['context']))

@@ -68,6 +68,10 @@ class TLiDB_Dataset(Dataset):
             self.metrics = ['token_f1']
             self.metric_kwargs = {}
             self._collate = self._collate_response_generation
+        elif task == "masked_language_modeling":
+            self.metrics = ['token_f1']
+            self.metric_kwargs = {}
+            self._collate = self._collate_encoder
         else:
             self.metrics = task_metadata[task]['metrics']
             self.metric_kwargs = task_metadata[task].get("metric_kwargs", dict())
