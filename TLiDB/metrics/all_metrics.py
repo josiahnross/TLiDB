@@ -276,6 +276,11 @@ class token_F1(StringMetric):
 
         # Taken from https://github.com/google-research/text-to-text-transfer-transformer/blob/main/t5/evaluation/metrics.py
         def _get_token_f1_macro(y_pred, y_true):
+            if torch.is_tensor(y_pred):
+                y_pred = y_pred.tolist()
+            if torch.is_tensor(y_true):
+                y_true = y_true.tolist()
+
             common_token_counts = (
                 Counter(y_true) &
                 Counter(y_pred))
@@ -304,6 +309,8 @@ class token_F1(StringMetric):
 
                 if isinstance(t, str):
                     f1 = _get_token_f1_macro(p.split(), t.split())
+                elif torch.is_tensor(t):
+                    f1 = _get_token_f1_macro(p, t)
                 elif isinstance(t, list):
                     # if multiple ground truths, select the max
                     f1 = self._metric_max_over_ground_truths(_get_token_f1_macro, p.split(), [t_.split() for t_ in t])
