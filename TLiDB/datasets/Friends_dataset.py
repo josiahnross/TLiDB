@@ -99,7 +99,7 @@ class Friends_dataset(TLiDB_Dataset):
             "collate_type": "masked_language_modeling", "max_decode_tokens": 512
         }
     }
-    def __init__(self, task, dataset_folder, model_type, split, max_dialogue_length, few_shot_percent=None):
+    def __init__(self, task, dataset_folder, model_type, split, max_dialogue_length, few_shot_percent=None, seed=-1, splitPercent=-1):
         assert task in self._tasks, f"{task} is not a valid task for {self._dataset_name}"
         super().__init__(self._dataset_name, task, model_type, max_dialogue_length, dataset_folder=dataset_folder)
         self._task_metadata = self._task_metadatas[task]
@@ -109,7 +109,7 @@ class Friends_dataset(TLiDB_Dataset):
         self._metadata_array = []
         if task == "masked_language_modeling":
             few_shot_percent = None
-        split_ids = load_split_ids(self._dataset_name, dataset_folder, split, few_shot_percent)
+        split_ids = load_split_ids(self._dataset_name, dataset_folder, split, few_shot_percent, seed, splitPercent)
         self._load_data(task, split_ids)
         self._num_classes = len(self.task_labels)
         self._y_size = len(self._y_array)

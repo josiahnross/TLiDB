@@ -106,6 +106,7 @@ class Algorithm(nn.Module):
         """
         self.is_training = mode
         super().train(mode)
+        # self.model.train(mode)
 
     def eval(self):
         """

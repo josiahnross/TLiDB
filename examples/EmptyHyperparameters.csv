@@ -1,0 +1,5 @@
+Task,emory_emotion_recognition,MELD_emotion_recognition,personality_detection,question_answering,reading_comprehension,relation_extraction,character_identification
+Learning Rate,0,0,0,0,0,0,0
+Effective Batch Size,0,0,0,0,0,0,0
+Validation Metric,0,0,0,0,0,0,0
+Epochs (0 based),0,0,0,0,0,0,0

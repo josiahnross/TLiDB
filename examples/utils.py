@@ -8,13 +8,13 @@ from TLiDB.datasets.get_dataset import get_dataset
 from TLiDB.data_loaders.data_loaders import get_dataloader
 from TLiDB.metrics.initializer import get_metric_computer
 
-def load_datasets_split(split, tasks, datasets, config):
+def load_datasets_split(split, tasks, datasets, config, splitSeed=-1, splitPercent=-1):
     split_datasets = {"datasets":[], "loaders":[], "metrics":[]}
     for t, d in zip(tasks, datasets):
         cur_dataset = get_dataset(dataset=d,task=t,dataset_folder=config.data_dir,
                             model_type=config.model_type,
                             max_dialogue_length=config.max_dialogue_length,
-                            split=split,few_shot_percent=config.few_shot_percent)
+                            split=split,few_shot_percent=config.few_shot_percent, seed=splitSeed, splitPercent=splitPercent)
         if config.frac < 1.0:
             cur_dataset.random_subsample(config.frac)
 
@@ -113,7 +113,8 @@ def get_savepath_dir_minimal(datasets, tasks, seed, log_dir, model, multitask=Fa
     prefix = os.path.join(log_dir, prefix[:-1], model)
     return prefix
 
-def append_to_save_path_dir(save_path_dir, datasets, tasks, few_shot_percent, seed, learning_rate, effective_batch_size):
+def append_to_save_path_dir(save_path_dir, datasets, tasks, few_shot_percent, seed, learning_rate, effective_batch_size,
+                            splitSeed = -1, splitPercent=-1):
     postfix = "FINETUNED_"
     if few_shot_percent:
         postfix += f"{few_shot_percent}_FEWSHOT_"
@@ -122,6 +123,9 @@ def append_to_save_path_dir(save_path_dir, datasets, tasks, few_shot_percent, se
     if seed > -1:
         postfix += f"seed.{seed}/"
         
+    if splitSeed >= 0 and splitPercent >= 0:
+        postfix += f"splitSeed.{splitSeed}/"
+        postfix += f"SplitPercent.{splitPercent}_"
     postfix += f"LR.{learning_rate}_"
     postfix += f"EBS.{effective_batch_size}_"
     if postfix == "FINETUNED_":
@@ -136,6 +140,12 @@ def save_algorithm(algorithm, epoch, best_val_metric, path, logger):
     torch.save(state, path)
     logger.write(f"Saved model to {path}\n")
 
+def save_state(state, path, logger):
+    torch.save(state, path)
+    if logger is not None:
+        logger.write(f"Saved model to {path}\n")
+
+
 def GetAlgorithmState(algorithm, epoch, best_val_metric):
     if algorithm == None:
         return None
@@ -148,17 +158,20 @@ def GetAlgorithmState(algorithm, epoch, best_val_metric):
 def load_algorithm(algorithm, path, logger):
     state = torch.load(path)
     algorithm.load_state_dict(state['algorithm'])
-    logger.write(f"Loaded model from {path}\n")
+    if logger is not None:
+        logger.write(f"Loaded model from {path}\n")
     return state['epoch'], state['best_val_metric']
 
 def loadState(path: str, logger):
     state = torch.load(path)
-    logger.write(f"Loaded model state from {path}\n")
+    if logger is not None:
+        logger.write(f"Loaded model state from {path}\n")
     return state
 
 def load_algorithmFromState(algorithm, state, logger):
     algorithm.load_state_dict(state['algorithm'])
-    logger.write(f"Loaded model from already loaded state \n")
+    if logger is not None:
+        logger.write(f"Loaded model from already loaded state \n")
     return state['epoch'], state['best_val_metric']
 
 def save_algorithm_if_needed(algorithm, epoch, config, best_val_metric, is_best, logger):
@@ -190,6 +203,7 @@ class Logger(object):
     def __init__(self, fpath=None, mode='w'):
         self.console = sys.stdout
         self.file = None
+        self.subLogger = None
         if fpath is not None:
             self.file = open(fpath, mode)
 
@@ -202,16 +216,21 @@ class Logger(object):
     def __exit__(self, *args):
         self.close()
 
-    def write(self, msg):
-        self.console.write(msg)
+    def write(self, msg, writeToConsole=True):
+        if writeToConsole:
+            self.console.write(msg)
         if self.file is not None:
             self.file.write(msg)
+        if self.subLogger is not None:
+            self.subLogger.write(msg, False)
 
     def flush(self):
         self.console.flush()
         if self.file is not None:
             self.file.flush()
             os.fsync(self.file.fileno())
+        if self.subLogger is not None:
+            self.subLogger.flush()
 
     def close(self):
         # self.console.close()

@@ -36,10 +36,12 @@ def load_dataset(name, dataset_folder, url):
 
     return ds
 
-def load_split_ids(name, dataset_folder, split, few_shot_percent=None):
+def load_split_ids(name, dataset_folder, split, few_shot_percent=None, seed=-1, splitPercent=-1):
     if f"TLiDB_{name}" not in os.listdir(dataset_folder):
         raise ValueError("Dataset not found")
-    if few_shot_percent and split!="test":
+    if splitPercent >= 0 and seed >= 0 and split != "test":
+        ids_file = f"{dataset_folder}/TLiDB_{name}/seed.{seed}/TTiDB_percent_{splitPercent}_{split}_ids.txt"
+    elif few_shot_percent and split!="test":
         ids_file = f"{dataset_folder}/TLiDB_{name}/TTiDB_{few_shot_percent}_percent_few_shot_{split}_ids.txt"
     else:
         ids_file = f"{dataset_folder}/TLiDB_{name}/TTiDB_{split}_ids.txt"
