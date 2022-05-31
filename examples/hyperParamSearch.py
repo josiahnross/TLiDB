@@ -1,3 +1,4 @@
+from pickle import FALSE
 from run_experimentV2 import TrainSourceModel, EvalModel
 from utils import Logger, get_savepath_dir_minimal, loadState, save_state, load_algorithmFromState
 import torch
@@ -11,14 +12,14 @@ import traceback
 
 if __name__ == "__main__":
     tasks = [
-        #'emory_emotion_recognition', 
-        #'reading_comprehension', 
-        #'character_identification',
+        # 'emory_emotion_recognition', 
+        # 'reading_comprehension', 
+        'character_identification',
         #'question_answering', 
         #'personality_detection',
         #'relation_extraction',
         #'MELD_emotion_recognition',
-        'masked_language_modeling'
+        # 'masked_language_modeling'
     ]
     seed = 12345
     splitSeed = 31415
@@ -27,11 +28,12 @@ if __name__ == "__main__":
     print(torch.cuda.is_available())
     print(torch.cuda.get_device_name(torch.cuda.current_device()))
 
-    model = "bert"
+    model = "gpt2"
     dataset = "Friends"
     maxEpochs = 40
     maxNotImprovingGapGroup = 2
     resumeFromLastModel = False
+    simultaneousMLM = False
 
     learningRates = [1e-4, 1e-5]
     effectiveBatchSizes = [10, 30, 60, 120]
@@ -40,6 +42,8 @@ if __name__ == "__main__":
     startEpochGroup = 0
 
     modelDataSetDir = GetSavedHyperparameterCSVDirectory(dataset, model, seed)
+    if simultaneousMLM:
+        modelDataSetDir += "MLM/"
     modelDataSetCSVPath = modelDataSetDir + f"HyperparameterInfos.csv"
     modelDataSetLogsDir = modelDataSetDir + "logs/"
     if not os.path.exists(modelDataSetLogsDir):
@@ -48,29 +52,33 @@ if __name__ == "__main__":
     hasException = False
     overallLogger = GetOverallLogger(modelDataSetLogsDir, sys.argv[1] if sys.argv[1] else None)
     for t in tasks:
+        tArray = [t]
+        if simultaneousMLM:
+            tArray.append('masked_language_modeling')
         # tempConfig = Config("bert", [t], ["Friends"], [t], ["Friends"], 0, do_train=True, eval_best=True, gpu_batch_size=10)
         # savePathDir = get_savepath_dir_minimal(tempConfig.source_datasets, tempConfig.source_tasks, seed, tempConfig.log_and_model_dir, 
         #                                         tempConfig.model, tempConfig.multitask)   
-        savePathDir = GetTempModelSavePath(dataset, model, t, seed)
+        savePathDir = GetTempModelSavePath(dataset, model, tArray, seed)
         if not os.path.exists(savePathDir):
             os.makedirs(savePathDir)
         taskMinimallLoggerPath = savePathDir + 'logMinimal.txt'
         if not os.path.exists(taskMinimallLoggerPath):
             taskMinimallLogger = Logger(taskMinimallLoggerPath, mode='w')
             taskMinimallLogger.subLogger = overallLogger
-            taskMinimallLogger.write(f"Starting Hyperparameter Search  Task: {t}  Seed: {seed}\n\n")
+            taskMinimallLogger.write(f"Starting Hyperparameter Search  Task: {tArray}  Seed: {seed}\n\n")
         else:
             taskMinimallLogger = Logger(taskMinimallLoggerPath, mode='a')
             taskMinimallLogger.subLogger = overallLogger
-            taskMinimallLogger.write(f"\n\nRestarting Hyperparameter Search  Task: {t}  Seed: {seed}\n\n")
+            taskMinimallLogger.write(f"\n\nRestarting Hyperparameter Search  Task: {tArray}  Seed: {seed}\n\n")
         taskMinimallLogger.flush()
         results = {}
         for bs in effectiveBatchSizes:
             for lr in learningRates:
                 results[(lr, bs)] = (0, 0, None, None)
         bestFinishedInfo = None
-        config = Config(model, [t], [dataset], [t], [dataset], 1, eval_best=True, 
-                gpu_batch_size=5, learning_rate=0, effective_batch_size=0)
+
+        config = Config(model, tArray, [dataset], tArray, [dataset], 1, eval_best=True, 
+                gpu_batch_size=3, learning_rate=0, effective_batch_size=0)
         config.seed= seed
         config.save_last = True
         # config.resume = resumeFromLastModel
@@ -82,7 +90,7 @@ if __name__ == "__main__":
                 config.effective_batch_size = bs
                 config.num_epochs = (i+1) * epochsPerRemove
                 (prevBest, prevImproveEpochGroup, modelState, modelAlgorithm) = results[(lr, bs)]
-                savePathWithLR_EBS = GetTempModelSaveLR_EBS(dataset, model, t, seed, lr, bs)
+                savePathWithLR_EBS = GetTempModelSaveLR_EBS(dataset, model, tArray, seed, lr, bs)
                 if not os.path.exists(savePathWithLR_EBS):
                     os.makedirs(savePathWithLR_EBS) 
                 if modelState is None and resumeFromLastModel:
@@ -128,11 +136,11 @@ if __name__ == "__main__":
                 SaveHyperparameterntoCSV(modelDataSetCSVPath, t, bestFinishedInfo[0], bestFinishedInfo[1], bestFinishedInfo[2],
                                                                              bestFinishedInfo[3])
                 
-                savePathWithLR_EBS = GetTempModelSaveLR_EBS(dataset, model, t, seed, bestFinishedInfo[0], bestFinishedInfo[1])
+                savePathWithLR_EBS = GetTempModelSaveLR_EBS(dataset, model, tArray, seed, bestFinishedInfo[0], bestFinishedInfo[1])
                 modelState = loadState(savePathWithLR_EBS + "best_model.pt", taskMinimallLogger)
 
                 # Save best model in good spot 
-                convenientModelPath = GetSavedSourceModelDirectory(dataset, model, t)
+                convenientModelPath = GetSavedSourceModelDirectory(dataset, model, tArray)
                 if not os.path.exists(convenientModelPath):
                     os.makedirs(convenientModelPath)  
                 save_state(modelState, os.path.join(convenientModelPath,f"best_model.pt"),taskMinimallLogger)
@@ -140,9 +148,9 @@ if __name__ == "__main__":
                 # Eval model and save result in CSV
                 evalMetrics = EvalModel(config, taskMinimallLogger, None, modelState)
                 
-                splitPercentDataPath = GetOrMakeEvalDataCSV(dataset, model, splitSeed, 1)  
+                splitPercentDataPath = GetOrMakeEvalDataCSV(dataset, model, splitSeed, 1, simultaneousMLM)  
                 SaveElementIntoDataCSV(splitPercentDataPath, t, t, evalMetrics[0])
-                taskMinimallLogger.write(f"\n\n Finished Task: {t} \n\n")
+                taskMinimallLogger.write(f"\n\n Finished Task: {tArray} \n\n")
                 break
             taskMinimallLogger.flush()
     

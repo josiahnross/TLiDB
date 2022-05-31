@@ -6,43 +6,31 @@ import os
 import configs
 import numpy as np
 from Config import Config
-
-def GetSavedSourceModelDirectory(dataset, model, task):
-    model_config_dict = configs.__dict__[f"{model}_config"]
-    modelName = model_config_dict["model"]
-    return f"./logs_and_models/PRETRAINED_SourceTasks/{dataset}/{modelName}/{task}/"
-    
-def GetSavedCsvDataDirectory(dataset, model):
-    model_config_dict = configs.__dict__[f"{model}_config"]
-    modelName = model_config_dict["model"]
-    return f"./logs_and_models/PRETRAINED_SourceTasks/{dataset}/{modelName}/"
-
-def SaveElementIntoCSV(path: str, sourceTask: str, targetTask:str, value):
-    csvData = np.genfromtxt(path, delimiter=',', dtype=str)
-    row = np.where(csvData[:, 0] == sourceTask)[0]
-    col = np.where(csvData[0, :] == targetTask)[0]
-    csvData[row, col] = str(value)
-    np.savetxt(path, csvData, delimiter=',', fmt='%s')
-
-def CreateNewEmptyCSV(emptyCsvPath, path):
-    csvData = np.genfromtxt(emptyCsvPath, delimiter=',', dtype=str)
-    np.savetxt(path, csvData, delimiter=',', fmt='%s')
-
+from newUtils import *
 if __name__ == "__main__":
     tasksHyperParams = {
-        'emory_emotion_recognition': (1e-5, 30), 
-        'reading_comprehension': (1e-5, 10), 
-        'character_identification': (1e-5, 10),
-        'question_answering': (1e-4, 120), 
-        'personality_detection': (1e-5, 60),
-        'relation_extraction': (1e-5, 10),
-        'MELD_emotion_recognition': (1e-5, 30)
+        ('bert', 'emory_emotion_recognition'): (1e-5, 30), 
+        ('bert', 'reading_comprehension'): (1e-5, 10), 
+        ('bert', 'character_identification'): (1e-5, 10),
+        ('bert', 'question_answering'): (1e-4, 120), 
+        ('bert', 'personality_detection'): (1e-5, 60),
+        ('bert', 'relation_extraction'): (1e-5, 10),
+        ('bert', 'MELD_emotion_recognition'): (1e-5, 30),
+        ('bert', 'masked_language_modeling'): (1e-5, 10),
+        
+        ('t5', 'emory_emotion_recognition'): (1e-4, 120), 
+        ('t5', 'reading_comprehension'): (1e-4, 60), 
+        ('t5', 'character_identification'): (1e-05, 10),
+        ('t5', 'question_answering'): (1e-5, 10), 
+        ('t5', 'personality_detection'): (1e-4, 120),
+        ('t5', 'relation_extraction'): (1e-4, 10),
+        ('t5', 'MELD_emotion_recognition'): (1e-4, 10)
     }
     sourceTasks = [
         'emory_emotion_recognition', 
         'reading_comprehension', 
         'character_identification',
-        'question_answering', 
+        #'question_answering', 
         'personality_detection',
         'relation_extraction',
         'MELD_emotion_recognition'
@@ -59,9 +47,9 @@ if __name__ == "__main__":
     splitPercents = [
         #0.2,
         #0.4,
-        #0.6,
+        0.6,
         #0.8,
-        1
+        #1
     ]
     startSplitPercentIndex = 0
     startSourceIndex = 0
@@ -72,7 +60,7 @@ if __name__ == "__main__":
     print(torch.cuda.current_device())
     print(torch.cuda.is_available())
     print(torch.cuda.get_device_name(torch.cuda.current_device()))
-    model = "bert"
+    model = "t5"
     dataset = "Friends"
     maxEpochs = 40
     maxNotImprovingGap = 4
@@ -82,6 +70,7 @@ if __name__ == "__main__":
         splitPercentDataPath = GetSavedCsvDataDirectory(dataset, model)
         if not os.path.exists(splitPercentDataPath):
             os.makedirs(splitPercentDataPath)
+        
         splitPercentDataPath += f"data_seed_{splitSeed}_splitPercent{splitPercent}.csv"
         if not os.path.exists(splitPercentDataPath):
             CreateNewEmptyCSV(emptyCsvPath, splitPercentDataPath)
@@ -91,24 +80,35 @@ if __name__ == "__main__":
             st = sourceTasks[stIndex]
             sourceSavePath = GetSavedSourceModelDirectory(dataset, model, st)
             if not os.path.exists(sourceSavePath):
-                os.makedirs(sourceSavePath)
+                continue
+                # os.makedirs(sourceSavePath)
             
             currentTargetTaskStartIndex = startTargetIndex if stIndex == startSourceIndex else 0
             for ttIndex in range(currentTargetTaskStartIndex, len(targetTasks), 1):
                 tt = targetTasks[ttIndex]
-                if tt == st:
-                    continue
-                lr, bs = tasksHyperParams[tt]
+                # if tt == st:
+                #     continue
+                lr, bs = tasksHyperParams[(model, tt)]
                 if splitPercent == 1:
                     if tt == st:
                         targetSavePath = sourceSavePath
                     else:
                         targetSavePath = sourceSavePath + f"FINETUNED_{dataset}.{tt}/seed.{seed}/LR.{lr}_EBS.{bs}/"
                 else:
-                    targetSavePath = sourceSavePath + f"FINETUNED_{dataset}.{tt}/seed.{seed}/splitSeed.{splitSeed}/SplitPercent.{splitPercent}_LR.{lr}_EBS.{bs}/"
-                modelState = loadState(targetSavePath + "best_model.pt", None)
-                config = Config(model, [st], [dataset], [tt], [dataset], 1, do_train=False, do_finetune=True, eval_best=True, gpu_batch_size=10,
+                    if tt == st:
+                        targetSavePath = sourceSavePath + f"splitSeed.{splitSeed}/splitPercent_{splitPercent}/"
+                    else:
+                        continue
+                        targetSavePath = sourceSavePath + f"FINETUNED_{dataset}.{tt}/seed.{seed}/splitSeed.{splitSeed}/SplitPercent.{splitPercent}_LR.{lr}_EBS.{bs}/"
+                targetSavePath += "best_model.pt"
+                # print(f"Got here 1   {targetSavePath}")
+                if not os.path.exists(targetSavePath):
+                    continue
+                # print("Got here 2")
+                modelState = loadState(targetSavePath, None)
+                config = Config(model, [st], [dataset], [tt], [dataset], 1, do_train=False, do_finetune=True, eval_best=True, gpu_batch_size=5,
                 learning_rate=lr, effective_batch_size=bs, saved_model_dir=sourceSavePath)
                 config.seed= seed
                 evalMetrics = EvalModel(config, None, None, modelState)
-                SaveElementIntoCSV(splitPercentDataPath, st, tt, evalMetrics[0])
+                SaveElementIntoDataCSV(splitPercentDataPath, st, tt, evalMetrics[0])
+                del modelState

@@ -42,6 +42,9 @@ def TrainSourceModel(config: Config, minimalLogger: Logger, algorithm, modelStat
     else:
         config.save_path_dir = save_path_dir
 
+    if modelState is not None and modelState['epoch'] + 1 >= config.num_epochs:
+        return modelState['best_val_metric'], modelState, None
+
     if not os.path.exists(config.save_path_dir):
         os.makedirs(config.save_path_dir)
 
@@ -129,6 +132,8 @@ def TrainModel(config: Config, minimalLogger: Logger, algorithm, modelState, isM
     training_best_val_metric = None
     set_seed(config.seed)
 
+    # if modelState is not None and modelState['epoch'] + 1 >= config.num_epochs:
+    #     return modelState['best_val_metric'], modelState, None
     if config.do_finetune:
         assert(config.target_datasets and config.target_tasks),"Must specify target datasets and tasks to finetune"
         datasets = {}
@@ -203,5 +208,8 @@ def TrainModel(config: Config, minimalLogger: Logger, algorithm, modelState, isM
 
     if logger != None:
         logger.close()
-    return training_best_val_metric, GetAlgorithmState(algorithm, epoch_offset-1, training_best_val_metric), algorithm
+    
+    retState = GetAlgorithmState(algorithm, epoch_offset-1, training_best_val_metric)
+    del algorithm
+    return training_best_val_metric, retState, None
 

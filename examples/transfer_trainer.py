@@ -61,33 +61,54 @@ def TrainNoTransfer(model, dataset, task, splitPercentDataPath, sourceSavePath, 
         evalMetrics = EvalModel(config, taskMinimallLogger, None, modelState)
         SaveElementIntoDataCSV(splitPercentDataPath, st, st, evalMetrics[0])
     taskMinimallLogger.flush()
+    del modelState
+    del modelAlgorithm
 
 if __name__ == "__main__":
     tasksHyperParams = {
-        ('bert', 'emory_emotion_recognition'): (1e-5, 30), 
-        ('bert', 'reading_comprehension'): (1e-5, 10), 
-        ('bert', 'character_identification'): (1e-5, 10),
-        ('bert', 'question_answering'): (1e-4, 120), 
-        ('bert', 'personality_detection'): (1e-5, 60),
-        ('bert', 'relation_extraction'): (1e-5, 10),
-        ('bert', 'MELD_emotion_recognition'): (1e-5, 30),
+        ('bert', 'emory_emotion_recognition', False): (1e-5, 30), 
+        ('bert', 'reading_comprehension', False): (1e-5, 10), 
+        ('bert', 'character_identification', False): (1e-5, 10),
+        ('bert', 'question_answering', False): (1e-4, 120), 
+        ('bert', 'personality_detection', False): (1e-5, 60),
+        ('bert', 'relation_extraction', False): (1e-5, 10),
+        ('bert', 'MELD_emotion_recognition', False): (1e-5, 30),
+        ('bert', 'masked_language_modeling', False): (1e-5, 10),
         
-        ('t5', 'emory_emotion_recognition'): (1e-4, 120), 
-        ('t5', 'reading_comprehension'): (1e-4, 60), 
-        ('t5', 'character_identification'): (0, 0),
-        ('t5', 'question_answering'): (1e-5, 10), 
-        ('t5', 'personality_detection'): (1e-4, 120),
-        ('t5', 'relation_extraction'): (1e-4, 10),
-        ('t5', 'MELD_emotion_recognition'): (1e-4, 10)
+        ('bert', 'emory_emotion_recognition', True): (1e-5, 10), 
+        ('bert', 'reading_comprehension', True): (1e-5, 30), 
+        ('bert', 'character_identification', True): (1e-5, 10),
+        ('bert', 'question_answering', True): (1e-4, 60), 
+        ('bert', 'personality_detection', True): (1e-5, 10),
+        ('bert', 'relation_extraction', True): (1e-5, 10),
+        ('bert', 'MELD_emotion_recognition', True): (1e-5, 30),
+
+        ('t5', 'emory_emotion_recognition', False): (1e-4, 120), 
+        ('t5', 'reading_comprehension', False): (1e-4, 60), 
+        ('t5', 'character_identification', False): (1e-05, 10),
+        ('t5', 'question_answering', False): (1e-5, 10), 
+        ('t5', 'personality_detection', False): (1e-4, 120),
+        ('t5', 'relation_extraction', False): (1e-4, 10),
+        ('t5', 'MELD_emotion_recognition', False): (1e-4, 10),
+
+        ('gpt2', 'emory_emotion_recognition', False): (1e-4, 60), 
+        ('gpt2', 'reading_comprehension', False): (1e-4, 10), 
+        ('gpt2', 'character_identification', False): (1e-04, 10),
+        ('gpt2', 'question_answering', False): (1e-4, 30), 
+        ('gpt2', 'personality_detection', False): (1e-5, 10),
+        ('gpt2', 'relation_extraction', False): (1e-4, 10),
+        ('gpt2', 'MELD_emotion_recognition', False): (1e-4, 10)
     }
     sourceTasks = [
-        #'emory_emotion_recognition', 
-        #'reading_comprehension', 
-        # 'character_identification',
-        #'question_answering', 
-        'personality_detection',
-        'relation_extraction',
-        'MELD_emotion_recognition'
+        'emory_emotion_recognition', 
+        'reading_comprehension', 
+        'character_identification',
+        'question_answering', 
+         'personality_detection',
+          'relation_extraction',
+          'MELD_emotion_recognition',
+
+        #'masked_language_modeling'
     ]
     targetTasks = [
         'personality_detection',
@@ -96,19 +117,24 @@ if __name__ == "__main__":
         'reading_comprehension', 
         'question_answering', 
         'MELD_emotion_recognition',
-        #'character_identification',
+        'character_identification',
+
+        
+        #'masked_language_modeling'
     ]
     splitPercents = [
         0.2,
         0.4,
-        0.6,
-        0.8
+        #0.6,
+        #0.8,
+        #1
     ]
     startSplitPercentIndex = 0
-    startSourceIndex = 1
-    startTargetIndex = 3
-    loadLastSavedModel = True
+    startSourceIndex = 0
+    startTargetIndex = 0
+    loadLastSavedModel = False
     trainNoTransfer = True
+    simultaneousMLM = False
     gpu_batch_size = 5
     seed = 12345
     splitSeed = 31415
@@ -116,13 +142,15 @@ if __name__ == "__main__":
     print(torch.cuda.current_device())
     print(torch.cuda.is_available())
     print(torch.cuda.get_device_name(torch.cuda.current_device()))
-    model = "t5"
+    model = "gpt2"
     dataset = "Friends"
     maxEpochs = 40
     maxNotImprovingGap = 4
     hasException = False
     loggerCount = 0
     basePath = GetSavedCsvDataDirectory(dataset, model)
+    if simultaneousMLM:
+        basePath += "MLM/"
     # CreatePathIfNotExist(basePath + "logs/")
     overallLogDir = basePath + f"Logs/"
     
@@ -135,17 +163,20 @@ if __name__ == "__main__":
 
     timeData = datetime.now().strftime("%m/%d %H:%M:%S")
     overallLogger.write(f"Model: {model}  Dataset: {dataset}  Time: {timeData}\n")
-    overallLogger.write(f"SplitPercents (start:{startSplitPercentIndex}): {splitPercents}\nSourceTasks (start:{startSourceIndex}): {sourceTasks}\nTargetTasks (start:{startTargetIndex}):{targetTasks}\n")
-    overallLogger.write(f"maxNotImprovingGap: {maxNotImprovingGap}  maxEpochs: {maxEpochs}  loadLastSavedModel:{loadLastSavedModel}  trainNoTransfer:{trainNoTransfer}  seed:{seed}  splitSeed:{splitSeed}\n")
+    overallLogger.write(f"SplitPercents (start:{startSplitPercentIndex}): {splitPercents}\nSourceTasks (start:{startSourceIndex}) {sourceTasks}\nTargetTasks (start:{startTargetIndex}):{targetTasks}\n")
+    overallLogger.write(f"simultaneousMLM: {simultaneousMLM}  maxNotImprovingGap: {maxNotImprovingGap}  maxEpochs: {maxEpochs}  loadLastSavedModel:{loadLastSavedModel}  trainNoTransfer:{trainNoTransfer}  seed:{seed}  splitSeed:{splitSeed}\n")
     for splitPercentIndex in range(startSplitPercentIndex, len(splitPercents), 1):
         splitPercent = splitPercents[splitPercentIndex]
 
-        splitPercentDataPath = GetOrMakeEvalDataCSV(dataset, model, splitSeed, splitPercent)      
+        splitPercentDataPath = GetOrMakeEvalDataCSV(dataset, model, splitSeed, splitPercent, simultaneousMLM)      
 
         currentSourceTaskStartIndex = startSourceIndex if splitPercentIndex == startSplitPercentIndex else 0
         for stIndex in range(currentSourceTaskStartIndex, len(sourceTasks), 1):
             st = sourceTasks[stIndex]
-            sourceSavePath = GetSavedSourceModelDirectory(dataset, model, st)
+            stArray = [st]
+            if simultaneousMLM:
+                stArray.append('masked_language_modeling')
+            sourceSavePath = GetSavedSourceModelDirectory(dataset, model, stArray)
             if not os.path.exists(sourceSavePath):
                 os.makedirs(sourceSavePath)
             sourceLoggerPath = sourceSavePath
@@ -159,14 +190,15 @@ if __name__ == "__main__":
             if not os.path.exists(sourceLoggerPath):
                 taskMinimallLogger = Logger(sourceLoggerPath, mode='w')
                 taskMinimallLogger.subLogger = overallLogger
-                taskMinimallLogger.write(f"\nStarting Source Task: {st} Split Percent: {splitPercent} Split Seed: {splitSeed}")
+                taskMinimallLogger.write(f"\nStarting Source Task: {stArray} Split Percent: {splitPercent} Split Seed: {splitSeed}")
             else:
                 taskMinimallLogger = Logger(sourceLoggerPath, mode='a')
                 taskMinimallLogger.subLogger = overallLogger
-                taskMinimallLogger.write(f"\n\nRestarting Source Task: {st} Split Percent: {splitPercent} Split Seed: {splitSeed}")
+                taskMinimallLogger.write(f"\n\nRestarting Source Task: {stArray} Split Percent: {splitPercent} Split Seed: {splitSeed}")
             taskMinimallLogger.flush()
-            if trainNoTransfer: 
-                lr, bs = tasksHyperParams[(model, st)]
+            currentTargetTaskStartIndex = startTargetIndex if stIndex == startSourceIndex and  splitPercentIndex == startSplitPercentIndex else 0
+            if trainNoTransfer and splitPercent != 1 and not simultaneousMLM: 
+                lr, bs = tasksHyperParams[(model, st, simultaneousMLM)]
                 torch.cuda.empty_cache()
                 try:
                     TrainNoTransfer(model, dataset, st, splitPercentDataPath, sourceSavePath, seed,splitSeed, splitPercent, maxNotImprovingGap, 
@@ -177,16 +209,18 @@ if __name__ == "__main__":
                         taskMinimallLogger.write(traceback.format_exc())
                         taskMinimallLogger.flush()
                         break
-            currentTargetTaskStartIndex = startTargetIndex if stIndex == startSourceIndex and  splitPercentIndex == startSplitPercentIndex else 0
             for ttIndex in range(currentTargetTaskStartIndex, len(targetTasks), 1):
                 torch.cuda.empty_cache()
                 tt = targetTasks[ttIndex]
-                if tt == st:
+                if tt == st and (not simultaneousMLM or splitPercent != 1):
                     continue
-                lr, bs = tasksHyperParams[(model, tt)]
+                # ttArray = [tt]
+                # if simultaneousMLM:
+                #     ttArray.append('masked_language_modeling')
+                lr, bs = tasksHyperParams[(model, tt, simultaneousMLM)]
                 taskMinimallLogger.write(f"\n\nTarget Task: {tt}   LR:{lr}   EBS: {bs}\n")
                 taskMinimallLogger.flush()
-                config = Config(model, [st], [dataset], [tt], [dataset], 1, do_train=False, do_finetune=True, eval_best=True, gpu_batch_size=gpu_batch_size,
+                config = Config(model, stArray, [dataset], [tt], [dataset], 1, do_train=False, do_finetune=True, eval_best=True, gpu_batch_size=gpu_batch_size,
                 learning_rate=lr, effective_batch_size=bs, saved_model_dir=sourceSavePath)
                 config.saved_model_dir = sourceSavePath
                 config.seed= seed
@@ -210,7 +244,7 @@ if __name__ == "__main__":
                     modelState = loadState(modelSavePath + "best_model.pt", taskMinimallLogger)
                 modelAlgorithm = None
                 if startEpoch - last_best_metric_index >= maxNotImprovingGap:
-                    taskMinimallLogger.write(f"No Source Task: {st} Target Task: {tt} Already Finished\n")
+                    taskMinimallLogger.write(f"Source Task: {stArray} Target Task: {tt} Already Finished\n")
                 else:
                     for i in range(startEpoch, maxEpochs, 1):
                         config.num_epochs = i + 1
@@ -231,13 +265,15 @@ if __name__ == "__main__":
                             break
                     if hasException:
                         break
-                    appenedSavePath = append_to_save_path_dir(modelSavePath, config.target_datasets, config.target_tasks, config.few_shot_percent, config.seed, 
-                                                            config.learning_rate, config.effective_batch_size, targetSplitSeed, targetSplitPercent)
-                    modelState = loadState(appenedSavePath + "/best_model.pt", taskMinimallLogger)
-                    evalMetrics = EvalModel(config, taskMinimallLogger, None, modelState)
-                    SaveElementIntoDataCSV(splitPercentDataPath, st, tt, evalMetrics[0])
+                appenedSavePath = append_to_save_path_dir(modelSavePath, config.target_datasets, config.target_tasks, config.few_shot_percent, config.seed, 
+                                                        config.learning_rate, config.effective_batch_size, targetSplitSeed, targetSplitPercent)
+                modelState = loadState(appenedSavePath + "/best_model.pt", taskMinimallLogger)
+                evalMetrics = EvalModel(config, taskMinimallLogger, None, modelState)
+                SaveElementIntoDataCSV(splitPercentDataPath, st, tt, evalMetrics[0])
+                del modelState
+                del modelAlgorithm
             if hasException:
                 break
-            taskMinimallLogger.write(f"Done with all listed target taks for source task: {st}")
+            taskMinimallLogger.write(f"Done with all listed target taks for source task: {stArray}")
         if hasException:
             break
