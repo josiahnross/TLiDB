@@ -2,15 +2,17 @@ import configs
 import numpy as np
 import os
 from utils import Logger, loadState
-def GetSavedSourceModelDirectory(dataset, model, task):
+baseDir = "/mnt/hhd/josiahnross/TransferLearningResearchProject/TLiDB/"
+
+def GetSavedSourceModelDirectory(dataset, model, task, seed):
     model_config_dict = configs.__dict__[f"{model}_config"]
     modelName = model_config_dict["model"]
-    return f"/mnt/bhd/josiahnross/TransferLearningResearchProject/TLiDB/logs_and_models/PRETRAINED_SourceTasks/{dataset}/{modelName}/{GetTaskString(task)}/"
+    return f"{baseDir}logs_and_models/PRETRAINED_SourceTasks/{dataset}/{seed}/{modelName}/{GetTaskString(task)}/"
     
-def GetSavedCsvDataDirectory(dataset, model):
+def GetSavedCsvDataDirectory(dataset, model, seed):
     model_config_dict = configs.__dict__[f"{model}_config"]
     modelName = model_config_dict["model"]
-    return f"/mnt/bhd/josiahnross/TransferLearningResearchProject/TLiDB/logs_and_models/PRETRAINED_SourceTasks/{dataset}/{modelName}/"
+    return f"{baseDir}logs_and_models/PRETRAINED_SourceTasks/{dataset}/{seed}/{modelName}/"
 
 def SaveElementIntoDataCSV(path: str, sourceTask: str, targetTask:str, value):
     csvData = np.genfromtxt(path, delimiter=',', dtype=str)
@@ -23,8 +25,8 @@ def CreateNewEmptyCSV(emptyCsvPath, path):
     csvData = np.genfromtxt(emptyCsvPath, delimiter=',', dtype=str)
     np.savetxt(path, csvData, delimiter=',', fmt='%s')
 
-def GetOrMakeEvalDataCSV(dataset, model, splitSeed, splitPercent, simultaneousMLM):
-    splitPercentDataPath = GetSavedCsvDataDirectory(dataset, model)
+def GetOrMakeEvalDataCSV(dataset, model, splitSeed, splitPercent, simultaneousMLM, seed):
+    splitPercentDataPath = GetSavedCsvDataDirectory(dataset, model, seed)
     if simultaneousMLM:
         splitPercentDataPath += "MLM/"
     if not os.path.exists(splitPercentDataPath):
@@ -43,15 +45,15 @@ def SaveHyperparameterntoCSV(path, task, lr, ebs, validation, epochs):
     csvData[4, col] = str(epochs)
     np.savetxt(path, csvData, delimiter=',', fmt='%s')
 
-def GetSavedHyperparameterCSVDirectory(dataset, model, seed):
+def GetSavedHyperparameterCSVDirectory(dataset, model, splitSeed, seed):
     model_config_dict = configs.__dict__[f"{model}_config"]
     modelName = model_config_dict["model"]
-    return f"/mnt/bhd/josiahnross/TransferLearningResearchProject/TLiDB/logs_and_models/PRETRAINING/{dataset}/{modelName}/seed.{seed}/"
+    return f"{baseDir}logs_and_models/PRETRAINING/{dataset}/{seed}/{modelName}/seed.{splitSeed}/"
 
-def GetTempModelSavePath(dataset, model, task, seed):
+def GetTempModelSavePath(dataset, model, task, splitSeed, seed):
     model_config_dict = configs.__dict__[f"{model}_config"]
     modelName = model_config_dict["model"]
-    return f"/mnt/bhd/josiahnross/TransferLearningResearchProject/TLiDB/logs_and_models/PRETRAINED_{dataset}/{modelName}/seed.{seed}/{GetTaskString(task)}/"
+    return f"{baseDir}logs_and_models/PRETRAINED_{dataset}/{seed}/{modelName}/seed.{splitSeed}/{GetTaskString(task)}/"
 
 def GetTaskString(task):
     if type(task) is str:
@@ -64,10 +66,10 @@ def GetTaskString(task):
             tStr += t
         return tStr
 
-def GetTempModelSaveLR_EBS(dataset, model, task, seed, lr, ebs):
+def GetTempModelSaveLR_EBS(dataset, model, task, splitSeed, seed, lr, ebs):
     model_config_dict = configs.__dict__[f"{model}_config"]
     modelName = model_config_dict["model"]
-    return f"/mnt/bhd/josiahnross/TransferLearningResearchProject/TLiDB/logs_and_models/PRETRAINED_{dataset}/{modelName}/seed.{seed}/{GetTaskString(task)}/LR_{lr}_EBS_{ebs}/"
+    return f"{baseDir}TLiDB/logs_and_models/PRETRAINED_{dataset}/{seed}/{modelName}/seed.{splitSeed}/{GetTaskString(task)}/LR_{lr}_EBS_{ebs}/"
 
 def LoadModelStateIfExists(path: str, logger: Logger):
     if os.path.exists(path):

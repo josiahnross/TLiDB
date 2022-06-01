@@ -49,7 +49,7 @@ def TrainNoTransfer(model, dataset, task, splitPercentDataPath, sourceSavePath, 
         for i in range(startEpoch, maxEpochs, 1):
             config.num_epochs = i + 1
             best_val_metric, modelState, modelAlgorithm = TrainSourceModel(config, taskMinimallLogger,modelAlgorithm, modelState, save_path_dir=modelSavePath,
-                                        targetSplitSeed=splitSeed, targetSplitPercent=splitPercent)
+                                        targetSplitSeed=sourceSplitSeed, targetSplitPercent=sourceSplitPercent)
             if last_best_metric == None or best_val_metric > last_best_metric:
                 last_best_metric = best_val_metric
                 last_best_metric_index = i
@@ -60,6 +60,9 @@ def TrainNoTransfer(model, dataset, task, splitPercentDataPath, sourceSavePath, 
         modelState = loadState(modelSavePath + "best_model.pt", taskMinimallLogger)
         evalMetrics = EvalModel(config, taskMinimallLogger, None, modelState)
         SaveElementIntoDataCSV(splitPercentDataPath, st, st, evalMetrics[0])
+        if splitPercent != 1:
+            os.remove(modelSavePath + "/best_model.pt")
+            os.remove(modelSavePath + "/last_model.pt")
     taskMinimallLogger.flush()
     del modelState
     del modelAlgorithm
@@ -104,9 +107,9 @@ if __name__ == "__main__":
         'reading_comprehension', 
         'character_identification',
         'question_answering', 
-         'personality_detection',
-          'relation_extraction',
-          'MELD_emotion_recognition',
+        'personality_detection',
+        'relation_extraction',
+        'MELD_emotion_recognition',
 
         #'masked_language_modeling'
     ]
@@ -136,19 +139,19 @@ if __name__ == "__main__":
     trainNoTransfer = True
     simultaneousMLM = False
     gpu_batch_size = 5
-    seed = 12345
+    seed = 98765
     splitSeed = 31415
     print(torch.cuda.device_count())
     print(torch.cuda.current_device())
     print(torch.cuda.is_available())
     print(torch.cuda.get_device_name(torch.cuda.current_device()))
-    model = "gpt2"
+    model = "bert"
     dataset = "Friends"
     maxEpochs = 40
     maxNotImprovingGap = 4
     hasException = False
     loggerCount = 0
-    basePath = GetSavedCsvDataDirectory(dataset, model)
+    basePath = GetSavedCsvDataDirectory(dataset, model, seed)
     if simultaneousMLM:
         basePath += "MLM/"
     # CreatePathIfNotExist(basePath + "logs/")
@@ -168,7 +171,7 @@ if __name__ == "__main__":
     for splitPercentIndex in range(startSplitPercentIndex, len(splitPercents), 1):
         splitPercent = splitPercents[splitPercentIndex]
 
-        splitPercentDataPath = GetOrMakeEvalDataCSV(dataset, model, splitSeed, splitPercent, simultaneousMLM)      
+        splitPercentDataPath = GetOrMakeEvalDataCSV(dataset, model, splitSeed, splitPercent, simultaneousMLM, seed)      
 
         currentSourceTaskStartIndex = startSourceIndex if splitPercentIndex == startSplitPercentIndex else 0
         for stIndex in range(currentSourceTaskStartIndex, len(sourceTasks), 1):
@@ -176,7 +179,7 @@ if __name__ == "__main__":
             stArray = [st]
             if simultaneousMLM:
                 stArray.append('masked_language_modeling')
-            sourceSavePath = GetSavedSourceModelDirectory(dataset, model, stArray)
+            sourceSavePath = GetSavedSourceModelDirectory(dataset, model, stArray,seed)
             if not os.path.exists(sourceSavePath):
                 os.makedirs(sourceSavePath)
             sourceLoggerPath = sourceSavePath
@@ -197,7 +200,7 @@ if __name__ == "__main__":
                 taskMinimallLogger.write(f"\n\nRestarting Source Task: {stArray} Split Percent: {splitPercent} Split Seed: {splitSeed}")
             taskMinimallLogger.flush()
             currentTargetTaskStartIndex = startTargetIndex if stIndex == startSourceIndex and  splitPercentIndex == startSplitPercentIndex else 0
-            if trainNoTransfer and splitPercent != 1 and not simultaneousMLM: 
+            if trainNoTransfer and not simultaneousMLM and splitPercent != 1: #
                 lr, bs = tasksHyperParams[(model, st, simultaneousMLM)]
                 torch.cuda.empty_cache()
                 try:
@@ -270,6 +273,8 @@ if __name__ == "__main__":
                 modelState = loadState(appenedSavePath + "/best_model.pt", taskMinimallLogger)
                 evalMetrics = EvalModel(config, taskMinimallLogger, None, modelState)
                 SaveElementIntoDataCSV(splitPercentDataPath, st, tt, evalMetrics[0])
+                os.remove(appenedSavePath + "/best_model.pt")
+                os.remove(appenedSavePath + "/last_model.pt")
                 del modelState
                 del modelAlgorithm
             if hasException:
